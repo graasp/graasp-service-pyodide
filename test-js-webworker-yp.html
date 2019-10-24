@@ -1,0 +1,198 @@
+<!doctype html>
+
+<html>
+<head>
+
+<script>
+
+/*
+
+Usage:
+
+let jsWorker = new JSWorker();
+jsWorker.onTerminated = () => { ... };
+jsWorker.onOutput = (text) => { ... };
+
+jsWorker.run("...");
+jsWorker.stop();
+
+*/
+
+class JSWorker {
+	constructor() {
+		this.worker = null;
+		this.isRunning = false;
+		this.outputBuffer = "";
+		this.onOutput = null;
+		this.onTerminated = null;
+	}
+
+	stop() {
+		if (this.worker != null) {
+			this.worker.terminate();
+			this.worker = null;
+			this.isRunning = false;
+			this.onTerminated && this.onTerminated();
+		}
+	}
+
+	create() {
+		this.stop();
+		this.worker = new Worker(JSWorker.workerURL);
+		this.isRunning = false;
+		this.worker.onmessage = (ev) => {
+			switch (ev.data.cmd) {
+			case "print":
+				this.outputBuffer += ev.data.data;
+				this.onOutput && this.onOutput(this.outputBuffer);
+				break;
+			case "clear":
+				this.outputBuffer = "";
+				this.onOutput && this.onOutput(this.outputBuffer);
+				break;
+			case "done":
+				this.isRunning = false;
+				this.onTerminated && this.onTerminated();
+				break;
+			}
+		};
+	}
+
+	run(src) {
+		if (this.worker == null || this.isRunning) {
+			this.create();
+		}
+		this.worker.postMessage(src);
+		this.isRunning = true;
+	}
+}
+
+JSWorker.workerURL = "data://text/javascript;base64," + btoa(`
+onmessage = (ev) => {
+
+	let outputClear = false;
+	let outputBuffer = "";
+	let pendingOutputFlushTime = -1;
+	const outputUpdateRate = 10;	// ms
+
+	function updateOutput(forced) {
+		let currentTime = Date.now();
+		if (forced) {
+			pendingOutputFlushTime = currentTime;
+		}
+		if (pendingOutputFlushTime < 0) {
+			// schedule flush
+			pendingOutputFlushTime = currentTime + outputUpdateRate;
+		} else if (pendingOutputFlushTime <= currentTime) {
+			// time to flush
+			if (outputClear) {
+				postMessage({cmd: "clear"});
+				outputClear = false;
+			}
+			if (outputBuffer) {
+				postMessage({cmd: "print", data: outputBuffer});
+				outputBuffer = "";
+			}
+			pendingOutputFlushTime = -1;
+		}
+	};
+
+	const functions = {
+		print: function (val) {
+			outputBuffer += val.toString();
+			updateOutput();
+		},
+		println: function (val) {
+			outputBuffer += (val ? val.toString() : "") + "\\n";
+			updateOutput();
+		},
+		clear: function () {
+			outputClear = true;
+			outputBuffer = "";
+			updateOutput();
+		},
+		flush: function () {
+			updateOutput(true);
+		}
+	};
+
+	let funNames = Object.keys(functions);
+	let args = [null].concat(funNames, ev.data);
+	let constr = Function.bind.apply(Function, args);
+	let f = new constr();
+	f.apply(null, Object.values(functions));
+	updateOutput(true);
+	postMessage({cmd: "done"});
+};
+`);
+
+window.addEventListener("load", () => {
+	let elSrc = document.getElementById("src");
+	let elRun = document.getElementById("btn-run");
+	let elStop = document.getElementById("btn-stop");
+
+	let jsWorker = new JSWorker();
+	elRun.addEventListener("click", () => {
+		let src = elSrc.value;
+		jsWorker.run(src);
+		elRun.disabled = true;
+		elStop.disabled = false;
+	}, false);
+	elStop.addEventListener("click", () => {
+		jsWorker.stop();
+		elRun.disabled = false;
+	}, false);
+	jsWorker.onTerminated = () => {
+		elStop.disabled = true;
+		elRun.disabled = false;
+	};
+	jsWorker.onOutput = (text) => {
+		document.getElementById("output").textContent = text;
+	};
+
+	// editor tab key
+	elSrc.addEventListener("keydown", (ev) => {
+		if (ev.keyCode === 9) {
+			// prevent loss of focus in textarea
+			ev.preventDefault();
+			ev.cancelBubbles = true;
+			let text = elSrc.value;
+			let start = this.selectionStart, end = this.selectionEnd;
+			text = text.slice(0, start) + "\t" + text.slice(end);
+			elSrc.value = text;
+			this.selectionStart = this.selectionEnd = start + 1;
+			return false;
+		}
+		// normal behavior
+		return true;
+	}, false);
+}, false);
+
+</script>
+
+</head>
+
+<body>
+
+<h3>Worker Test (JavaScript)</h3>
+
+<textarea cols="80" rows="10" id="src" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+while (true) {
+	clear();
+	println(new Date().toString());
+	for (let i = 0; i < 10; i++) {
+		print(i);
+	}
+	println();
+}
+</textarea>
+
+<p>
+<button id="btn-run" type="button">Run</button>
+<button id="btn-stop" type="button" disabled>Stop</button>
+</p>
+
+<pre id="output"></pre>
+
+</body>
+</html>

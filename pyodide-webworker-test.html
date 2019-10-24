@@ -1,0 +1,97 @@
+<!--
+
+Test of pyodide, with
+	- stdout and stderr collected and displayed in a pre element
+	- error message sent to stderr
+	- last result displayed with sys.displayhook
+	- dynamic loading of modules referenced by import statements
+	- runs asynchronously in a webworker, with timeout and interruption
+
+Author: Yves Piguet, EPFL, 2019
+
+-->
+
+<!doctype html>
+
+<html>
+    <head>
+        <meta charset="utf-8"/>
+        <script src="pyodide-webworker-master"></script>
+		<script>
+
+window.addEventListener("load", () => {
+	let elSrc = document.getElementById("src");
+	let elRun = document.getElementById("btn-run");
+	let elStop = document.getElementById("btn-stop");
+	let elClear = document.getElementById("btn-clear");
+
+	let pyWorker = new PyWorker();
+	pyWorker.timeout = 60
+	pyWorker.addCommand("alert", (msg) => { alert(msg); });
+	pyWorker.preload();
+	elRun.addEventListener("click", () => {
+		let src = elSrc.value;
+		pyWorker.run(src);
+		elRun.disabled = true;
+		elStop.disabled = false;
+	}, false);
+	elStop.addEventListener("click", () => {
+		pyWorker.stop();
+		pyWorker.preload();
+		elRun.disabled = false;
+	}, false);
+	elClear.addEventListener("click", () => {
+		pyWorker.clearOutput();
+	}, false);
+	pyWorker.onTerminated = () => {
+		elStop.disabled = true;
+		elRun.disabled = false;
+	};
+	pyWorker.onOutput = (text) => {
+		document.getElementById("output").textContent = text;
+	};
+	pyWorker.onTimeout = () => {
+		pyWorker.printToOutput("\nTimeout\n");
+	};
+
+	// editor tab key
+	elSrc.addEventListener("keydown", (ev) => {
+		if (ev.keyCode === 9) {
+			// prevent loss of focus in textarea
+			ev.preventDefault();
+			ev.cancelBubbles = true;
+			let text = elSrc.value;
+			let start = this.selectionStart, end = this.selectionEnd;
+			text = text.slice(0, start) + "\t" + text.slice(end);
+			elSrc.value = text;
+			this.selectionStart = this.selectionEnd = start + 1;
+			return false;
+		}
+		// normal behavior
+		return true;
+	}, false);
+}, false);
+
+        </script>
+    </head>
+    <body>
+
+<h3>Test of Pyodide in a webworker</h3>
+
+<textarea cols="80" rows="10" id="src" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+def f():
+  for i in range(10):
+    print(i)
+
+f()
+</textarea>
+
+<p>
+<button id="btn-run" type="button">Run</button>
+<button id="btn-stop" type="button" disabled>Stop</button>
+<button id="btn-clear" type="button">Clear</button>
+</p>
+
+<pre id="output"></pre>
+    </body>
+</html>
