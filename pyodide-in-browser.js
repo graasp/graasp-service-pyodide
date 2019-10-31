@@ -73,7 +73,7 @@ class Pyodide {
             });
         this.clearFigure = options && options.clearFigure ||
             (() => {
-                if (moduleNames.indexOf("matplotlib") >= 0) {
+                if (this.moduleNames.indexOf("matplotlib") >= 0) {
                     pyodide.runPython(`
                         import matplotlib.pyplot
                         matplotlib.pyplot.clf()
@@ -210,9 +210,7 @@ class Pyodide {
         let errMsg = "";
         let moduleNamesLen0 = this.moduleNames.length;
         try {
-            self.pyodideGlobal = {
-                setFigureURL: (url) => this.setFigureURL(url)
-            };
+            self.pyodideGlobal.setFigureURL = (url) => this.setFigureURL(url);
             self.pyodideGlobal.runPythonOutput = pyodide.runPython(src);
 
             pyodide.runPython(`
