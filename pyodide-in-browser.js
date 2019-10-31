@@ -10,6 +10,26 @@ Test of pyodide, with
 
 Author: Yves Piguet, EPFL, 2019
 
+Usage:
+    const options = {
+        btnRunId: "id of button to run code",  // else call p.run(src)
+        btnClearId: "id of button to clear output",  // else call p.clear()
+            // or call p.clearFigure() and p.clearText()
+        srcId: "id of element with source code in value",
+        outputId: "id of element whose textContent receives text output",
+        write: function (str) { /* write text output ** },
+            // alternative to outputId
+        clearText: function () { /* clear text output ** },
+            // alternative to outputId
+        figureId: "id of image which shows graphical output",
+        showFigure: function (dataURL) { /* show graphical output ** },
+            // alternative to figureId
+        clearFigure: function () { /* clear graphical output ** },
+            // alternative to figureId
+    };
+    const p = new Pyodide(options);
+    p.load();
+    p.run(src);  // or rely on btnRunId passed as an option to Pyodide constructor
 */
 
 class Pyodide {
@@ -26,9 +46,38 @@ class Pyodide {
         this.elOutput = options && options.outputId
             ? document.getElementById(options.outputId)
             : null;
+        this.write = options && options.write ||
+            ((str) => {
+                if (this.elOutput) {
+                    this.elOutput.textContent += str;
+                }
+            });
+        this.clearText = options && options.clearText ||
+            (() => {
+        		if (this.elOutput) {
+                    this.elOutput.textContent = "";
+                }
+            });
         this.figure = options && options.figureId
             ? document.getElementById(options.figureId)
             : null;
+        this.setFigureURL = options && options.setFigureURL ||
+            ((url) => {
+                if (this.figure) {
+                    this.figure.src = url;
+                }
+            });
+        this.clearFigure = options && options.clearFigure ||
+            (() => {
+            	if (moduleNames.indexOf("matplotlib") >= 0) {
+            		pyodide.runPython(`
+            			import matplotlib.pyplot
+            			matplotlib.pyplot.clf()
+            		`);
+                    const transp1by1 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+            		this.setFigureURL(transp1by1);
+            	}
+            });
 
         this.moduleNames = [];
 
@@ -116,12 +165,7 @@ class Pyodide {
             }
             if (this.btnClear) {
                 this.btnClear.disabled = false;
-                this.btnClear.addEventListener("click", () => {
-    				if (this.elOutput) {
-                        this.elOutput.textContent = "";
-                    }
-    				this.clearFigure();
-    			});
+                this.btnClear.addEventListener("click", () => this.clear());
             }
 		});
     }
@@ -130,12 +174,6 @@ class Pyodide {
 		if (this.moduleNames.indexOf(name) < 0) {
 			this.moduleNames.push(name);
 		}
-    }
-
-    setFigureURL(url) {
-        if (this.figure) {
-            document.getElementById("figure").src = url;
-        }
     }
 
     run(src) {
@@ -188,9 +226,7 @@ class Pyodide {
 		}
 
 		let stdout = pyodide.runPython("sys.stdout.getvalue()");
-        if (this.elOutput) {
-		  this.elOutput.textContent += stdout + errMsg;
-        }
+        this.write(stdout + errMsg);
 
         if (this.btnRun) {
             this.btnRun.disabled = false;
@@ -200,13 +236,8 @@ class Pyodide {
         }
     }
 
-    clearFigure() {
-    	if (moduleNames.indexOf("matplotlib") >= 0) {
-    		pyodide.runPython(`
-    			import matplotlib.pyplot
-    			matplotlib.pyplot.clf()
-    		`);
-    		self.setFigureURL("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=");
-    	}
+    clear() {
+        this.clearText();
+		this.clearFigure();
     }
 }
