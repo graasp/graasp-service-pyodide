@@ -1,0 +1,76 @@
+<!--
+
+Test of pyodide, with
+	- stdout and stderr collected and displayed in a pre element
+	- error message sent to stderr
+	- last result displayed with sys.displayhook
+	- dynamic loading of modules referenced by import statements
+	- file support
+	- matplotlib support
+
+Author: Yves Piguet, EPFL, 2019
+
+-->
+
+<!doctype html>
+
+<html>
+    <head>
+        <meta charset="utf-8"/>
+        <script src="pyodide.js"></script>
+        <script src="pyodide-in-browser.js"></script>
+        <script>
+
+			window.addEventListener("load", () => {
+
+                let p = new Pyodide({
+                    btnRunId: "btn-run",
+                    btnClearId: "btn-clear",
+                    srcId: "src",
+                    outputId: "output",
+                    figureId: "figure"
+                });
+                p.load();
+
+			}, false);
+        </script>
+    </head>
+    <body>
+
+<h3>Test of Pyodide in the browser main thread</h3>
+
+<textarea cols="80" rows="10" id="src" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+with open("foo.txt", "w") as f:
+	f.write("Hello, pyodide!\n")
+
+with open("foo.txt", "a") as f:
+	f.write("Bye.\n")
+
+with open("foo.txt") as f:
+	data = f.read()
+print(data)
+
+import matplotlib.pyplot as pp
+pp.plot([1,3,2])
+</textarea>
+
+<!--
+
+import numpy as np
+a = np.arange(15).reshape(3, 5)
+a.shape
+
+
+-->
+
+<p>
+<button id="btn-run" type="button" disabled>Run</button>
+<button id="btn-clear" type="button" disabled>Clear</button>
+</p>
+
+<pre id="output"></pre>
+
+<p><img id="figure"></p>
+
+    </body>
+</html>
