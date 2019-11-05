@@ -28,7 +28,7 @@ Usage:
             // alternative to figureId
     };
     const p = new Pyodide(options);
-    p.load();
+    p.load();   // optional arg: function called once everything is loaded
     p.run(src);  // or rely on btnRunId passed as an option to Pyodide constructor
     ...
     let dirtyFilePaths = p.getDirtyFilePaths();
@@ -112,7 +112,7 @@ class Pyodide {
         }
     }
 
-    load() {
+    load(then) {
         languagePluginLoader.then(() => {
 
             self.pyodideGlobal = {
@@ -174,6 +174,8 @@ class Pyodide {
                 this.btnClear.disabled = false;
                 this.btnClear.addEventListener("click", () => this.clear());
             }
+
+            then && then();
         });
     }
 
