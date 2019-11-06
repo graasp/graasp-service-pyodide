@@ -250,6 +250,14 @@ class Pyodide {
             sys.stderr = sys.stdout
         `);
 
+        // disable MatPlotLib output (will get it with matplotlib.pyplot.savefig)
+        if (this.moduleNames.indexOf("matplotlib") >= 0) {
+            pyodide.runPython(`
+                import matplotlib
+                matplotlib.use('Agg')
+            `);
+        }
+
         if (src == undefined) {
             src = this.elSrc.value;
         }
