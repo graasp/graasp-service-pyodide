@@ -16,7 +16,7 @@ Author: Yves Piguet, EPFL, 2019
 <html>
     <head>
         <meta charset="utf-8"/>
-        <script src="pyodide-webworker-master"></script>
+        <script src="pyodide-webworker-master.js"></script>
 		<script>
 
 window.addEventListener("load", () => {
@@ -25,7 +25,7 @@ window.addEventListener("load", () => {
 	let elStop = document.getElementById("btn-stop");
 	let elClear = document.getElementById("btn-clear");
 
-	let pyWorker = new PyWorker();
+	let pyWorker = new PyWorker("pyodide-webworker.js");
 	pyWorker.timeout = 60
 	pyWorker.addCommand("alert", (msg) => { alert(msg); });
 	pyWorker.preload();
@@ -42,6 +42,7 @@ window.addEventListener("load", () => {
 	}, false);
 	elClear.addEventListener("click", () => {
 		pyWorker.clearOutput();
+        pyWorker.clearFigure();
 	}, false);
 	pyWorker.onTerminated = () => {
 		elStop.disabled = true;
@@ -50,6 +51,9 @@ window.addEventListener("load", () => {
 	pyWorker.onOutput = (text) => {
 		document.getElementById("output").textContent = text;
 	};
+    pyWorker.onFigure = (imageDataURL) => {
+        document.getElementById("figure").src = imageDataURL;
+    };
 	pyWorker.onTimeout = () => {
 		pyWorker.printToOutput("\nTimeout\n");
 	};
@@ -93,5 +97,7 @@ f()
 </p>
 
 <pre id="output"></pre>
+<p><img id="figure"></p>
+
     </body>
 </html>

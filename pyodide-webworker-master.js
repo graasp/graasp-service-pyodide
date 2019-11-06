@@ -5,6 +5,7 @@ Test of pyodide, with
 	- error message sent to stderr
 	- last result displayed with sys.displayhook
 	- dynamic loading of modules referenced by import statements
+	- file support
 	- runs asynchronously in a webworker, with timeout and interruption
 
 Author: Yves Piguet, EPFL, 2019
@@ -14,6 +15,7 @@ Usage:
 let pyWorker = new PyWorker();
 pyWorker.onTerminated = () => { ... };
 pyWorker.onOutput = (text) => { ... };
+pyWorker.onFigure = (imageDataURL) => { ... }
 pyWorker.onTimeout = () => { ... };
 pyWorker.addCommand("name", (data) => { ... });
 
@@ -63,6 +65,9 @@ class PyWorker {
 			case "clear":
 				this.clearOutput();
 				break;
+            case "figure":
+                this.onFigure && this.onFigure(ev.data.data);
+                break;
 			case "done":
 				this.isRunning = false;
 				this.onTerminated && this.onTerminated();
@@ -108,6 +113,11 @@ class PyWorker {
 		this.outputBuffer = "";
 		this.onOutput && this.onOutput(this.outputBuffer);
 	}
+
+    clearFigure() {
+        const transp1by1 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+        this.onFigure && this.onFigure(transp1by1);
+    }
 
 	printToOutput(str) {
 		this.outputBuffer += str;

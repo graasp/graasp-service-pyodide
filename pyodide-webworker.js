@@ -27,7 +27,7 @@ Make sure that .wasm is served with mime type application/wasm
 
 */
 
-importScripts("pyodide.js");
+importScripts("pyodide-class.js", "pyodide.js");
 
 var loaded = false;
 
@@ -36,21 +36,20 @@ let outputBuffer = "";
 let pendingOutputFlushTime = -1;
 const outputUpdateRate = 10;	// ms
 
-let moduleNames = [];
-self.addModuleName = function (name) {
-	if (moduleNames.indexOf(name) < 0) {
-		moduleNames.push(name);
-	}
+const options = {
+    write: function (str) {
+	   outputBuffer += str;
+    },
+    clearText: function () {
+    	outputBuffer = "";
+    	outputClear = true;
+    },
+    setFigureURL: function (dataURL) {
+        postMessage({cmd: "figure", data: dataURL});
+    }
 };
+const p = new Pyodide(options);
 
-function writeToOutput(str) {
-	outputBuffer += str;
-}
-
-function clearOutput() {
-	outputBuffer = "";
-	outputClear = true;
-}
 
 function updateOutput(forced) {
 	let currentTime = Date.now();
@@ -78,52 +77,10 @@ function sendCommand(cmd, data) {
 	postMessage({cmd: "cmd:" + cmd, data: data})
 }
 
-function input(prompt) {
-	writeToOutput(prompt);
-	postMessage({cmd: "input"});
-	var promise = new Promise((resolve, reject) => {
-		console.info(resolve);
-		console.info(reject);
-	});
-	return promise;
-}
-
 function run(src) {
 	if (src) {
-		pyodide.runPython(`
-			import io, sys, js
-			class __StringNotifierIO(io.TextIOBase):
-				def write(self, s):
-					js.writeToOutput(s)
-					js.updateOutput()
-					return len(s)
-
-			sys.stdout = __StringNotifierIO()
-			sys.stderr = sys.stdout
-		`);
-
-		let moduleNamesLen0 = moduleNames.length;
-		try {
-			self.runPythonOutput = pyodide.runPython(src);
-			pyodide.runPython(`
-				from js import runPythonOutput
-				import sys
-				sys.displayhook(runPythonOutput)
-			`);
-		} catch (err) {
-			if (/ModuleNotFoundError/.test(err.message) &&
-				moduleNames.length > moduleNamesLen0) {
-				pyodide.loadPackage(moduleNames)
-					.then(() => {
-						run(src);
-					});
-			} else {
-				writeToOutput(err.message);
-			}
-		}
-
+        p.run(src);
 		updateOutput(true);
-
 	}
 
 	postMessage({cmd: "done"});
@@ -136,20 +93,7 @@ onmessage = (ev) => {
 	if (loaded) {
 		run(src);
 	} else {
-		languagePluginLoader.then(() => {
-			loaded = true;
-
-			pyodide.runPython(`
-				import sys
-				from js import addModuleName
-				class __ImportIntercept:
-					def find_spec(self, name, path, module):
-						addModuleName(name)
-				sys.meta_path.append(__ImportIntercept())
-			`);
-
-			run(src);
-		});
+        p.load(() => run(src));
 	}
 
 }
