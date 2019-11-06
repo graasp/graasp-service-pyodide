@@ -36,6 +36,49 @@ Usage:
     // or periodically
 */
 
+class FileSystem {
+    constructor(getDir, getFile, setFile) {
+        this.getDir = getDir;
+        this.getFile = getFile;
+        this.setFile = setFile;
+    }
+
+    static createInSessionStorage() {
+        return new FileSystem(
+            () => {
+                return Object.keys(self.sessionStorage);
+            },
+            (filename) => {
+                return self.sessionStorage.getItem(filename);
+            },
+            (filename, content) => {
+                self.sessionStorage.setItem(filename, content);
+            }
+        );
+    }
+
+    static createInJSObject() {
+        let fs = {};
+        return new FileSystem(
+            () => {
+                return Object.keys(fs);
+            },
+            (filename) => {
+                return fs[filename];
+            },
+            (filename, content) => {
+                fs[filename] = content;
+            }
+        );
+    }
+
+    static create() {
+        return self.sessionStorage
+            ? FileSystem.createInSessionStorage()
+            : FileSystem.createInJSObject();
+    }
+}
+
 class Pyodide {
     constructor(options) {
         this.btnRun = options && options.btnRunId
@@ -117,6 +160,7 @@ class Pyodide {
 
             self.pyodideGlobal = {
                 addModuleName: (name) => this.addModuleName(name),
+                fs: FileSystem.create(),
                 markFileDirty: (path) => this.markFileDirty(path)
             };
 
@@ -135,7 +179,7 @@ class Pyodide {
                     def __init__(self, filename, mode="r"):
                         self.filename = filename
                         self.readOnly = mode == "r"
-                        content = js.sessionStorage.getItem(filename)
+                        content = js.pyodideGlobal.fs.getFile(filename)
                         if content is None:
                             if self.readOnly:
                                 raise FileNotFoundError(filename)
@@ -151,7 +195,7 @@ class Pyodide {
                     def close(self):
                         if not self.readOnly:
                             content = self.getvalue()
-                            js.sessionStorage.setItem(self.filename, content)
+                            js.pyodideGlobal.fs.setFile(self.filename, content)
                             pyodideGlobal.markFileDirty(self.filename)
                             super().close()
 
@@ -162,7 +206,7 @@ class Pyodide {
                 import os
 
                 def __os_listdir(path="."):
-                    return list(js.Object.keys(js.sessionStorage))
+                    return list(js.pyodideGlobal.fs.getDir())
                 os.listdir = __os_listdir
             `);
 
