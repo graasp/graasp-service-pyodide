@@ -12,11 +12,11 @@ Author: Yves Piguet, EPFL, 2019
 
 Usage:
     const options = {
+        ready: function () { /* notify that running is finished ** },
         write: function (str) { /* write text output ** },
         clearText: function () { /* clear text output ** },
-        figureId: "id of image which shows graphical output",
-        showFigure: function (dataURL) { /* show graphical output ** },
-        clearFigure: function () { /* clear graphical output ** },
+        setFigureURL: function (dataURL) { /* show graphical output ** },
+        notifyDirtyFile: function (path) { /* notify that a file has been modified ** },
     };
     const p = new Pyodide(options);
     p.load();   // optional arg: function called once everything is loaded
@@ -84,6 +84,7 @@ class Pyodide {
         this.write = options && options.write || ((str) => {});
         this.clearText = options && options.clearText || (() => {});
         this.setFigureURL = options && options.setFigureURL || ((url) => {});
+        this.notifyDirtyFile = options && options.notifyDirtyFile || ((path) => {});
 
         this.moduleNames = [];
         this.dirtyFiles = [];
@@ -158,6 +159,7 @@ class Pyodide {
     markFileDirty(path) {
         if (this.dirtyFiles.indexOf(path) < 0) {
             this.dirtyFiles.push(path);
+            this.notifyDirtyFile(path);
         }
     }
 

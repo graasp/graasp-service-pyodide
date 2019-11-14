@@ -17,6 +17,7 @@ pyWorker.onTerminated = () => { ... };
 pyWorker.onOutput = (text) => { ... };
 pyWorker.onFigure = (imageDataURL) => { ... }
 pyWorker.onTimeout = () => { ... };
+pyWorker.onDirtyFile = (path) => { ... };
 pyWorker.addCommand("name", (data) => { ... });
 
 pyWorker.run(null);	// preload (optional)
@@ -67,6 +68,9 @@ class PyWorker {
 				break;
             case "figure":
                 this.onFigure && this.onFigure(ev.data.data);
+                break;
+            case "dirty":
+                this.onDirtyFile && this.onDirtyFile(ev.data.data);
                 break;
 			case "done":
 				this.isRunning = false;

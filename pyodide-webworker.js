@@ -50,6 +50,9 @@ const options = {
     ready: () => {
 	   updateOutput(true);
 	   postMessage({cmd: "done"});
+    },
+    notifyDirtyFile: (path) => {
+        postMessage({cmd: "dirty", data: path});
     }
 };
 const p = new Pyodide(options);
