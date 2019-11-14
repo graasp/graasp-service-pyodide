@@ -118,6 +118,7 @@ f()
 Sample code:
 <a onclick="document.getElementById('src').value = document.getElementById('ex-def').textContent.trim();" href="#">def</a>
 <a onclick="document.getElementById('src').value = document.getElementById('ex-files').textContent.trim();" href="#">files</a>
+<a onclick="document.getElementById('src').value = document.getElementById('ex-numpy').textContent.trim();" href="#">numpy</a>
 <a onclick="document.getElementById('src').value = document.getElementById('ex-matplotlib').textContent.trim();" href="#">matplotlib</a>
 </p>
 
@@ -139,6 +140,19 @@ with open("foo.txt", "a") as f:
 with open("foo.txt") as f:
 	data = f.read()
 print(data)
+</script>
+
+<script id="ex-numpy" type="text/x-sample-code">
+import numpy as np
+a = np.arange(4).reshape(2, 2)
+print("a =", a)
+print("a.shape =", a.shape)
+
+import numpy.linalg as linalg
+b = np.array([[1, 2, 3],[4, 5, 6],[5, 2, 1]])
+bi = linalg.inv(b)
+print("b =", b)
+print("inv b =", bi)
 </script>
 
 <script id="ex-matplotlib" type="text/x-sample-code">

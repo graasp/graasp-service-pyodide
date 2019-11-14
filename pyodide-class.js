@@ -90,6 +90,7 @@ class Pyodide {
     }
 
     load(then) {
+        self.languagePluginUrl = "pyodide-build-0.14.1/";
         languagePluginLoader.then(() => {
 
             self.pyodideGlobal = {
