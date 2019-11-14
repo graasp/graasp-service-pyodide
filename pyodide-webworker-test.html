@@ -35,7 +35,7 @@ window.addEventListener("load", () => {
 		pyWorker.run(src);
 		elRun.disabled = true;
 		elStop.disabled = false;
-        elBusy.style.display = "inline";
+        elBusy.style.display = "inline-block";
 	}, false);
 	elStop.addEventListener("click", () => {
 		pyWorker.stop();
@@ -84,10 +84,10 @@ window.addEventListener("load", () => {
         <style>
             .busy {
               display: inline-block;
-              width: 0.4em;
-              height: 0.4em;
+              width: 0.5em;
+              height: 0.5em;
               border-radius: 50%;
-              border: 2px solid transparent;
+              border: 1px solid transparent;
               border-top: 2px solid #f00;
               border-bottom: 2px solid #f00;
               animation: busy-rot 2s linear infinite;
