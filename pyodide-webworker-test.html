@@ -24,6 +24,7 @@ window.addEventListener("load", () => {
 	let elRun = document.getElementById("btn-run");
 	let elStop = document.getElementById("btn-stop");
 	let elClear = document.getElementById("btn-clear");
+    let elBusy = document.getElementById("busy");
 
 	let pyWorker = new PyWorker("pyodide-webworker.js");
 	pyWorker.timeout = 60
@@ -34,6 +35,7 @@ window.addEventListener("load", () => {
 		pyWorker.run(src);
 		elRun.disabled = true;
 		elStop.disabled = false;
+        elBusy.style.display = "inline";
 	}, false);
 	elStop.addEventListener("click", () => {
 		pyWorker.stop();
@@ -47,6 +49,7 @@ window.addEventListener("load", () => {
 	pyWorker.onTerminated = () => {
 		elStop.disabled = true;
 		elRun.disabled = false;
+        elBusy.style.display = "none";
 	};
 	pyWorker.onOutput = (text) => {
 		document.getElementById("output").textContent = text;
@@ -77,6 +80,27 @@ window.addEventListener("load", () => {
 }, false);
 
         </script>
+
+        <style>
+            .busy {
+              display: inline-block;
+              width: 0.4em;
+              height: 0.4em;
+              border-radius: 50%;
+              border: 2px solid transparent;
+              border-top: 2px solid #f00;
+              border-bottom: 2px solid #f00;
+              animation: busy-rot 2s linear infinite;
+            }
+            @keyframes busy-rot {
+              0% {
+                transform: rotate(0deg);
+              }
+              100% {
+                transform: rotate(360deg);
+              }
+            }
+        </style>
     </head>
     <body>
 
@@ -91,9 +115,42 @@ f()
 </textarea>
 
 <p>
+Sample code:
+<a onclick="document.getElementById('src').value = document.getElementById('ex-def').textContent.trim();" href="#">def</a>
+<a onclick="document.getElementById('src').value = document.getElementById('ex-files').textContent.trim();" href="#">files</a>
+<a onclick="document.getElementById('src').value = document.getElementById('ex-matplotlib').textContent.trim();" href="#">matplotlib</a>
+</p>
+
+<script id="ex-def" type="text/x-sample-code">
+def f():
+  for i in range(10):
+    print(i)
+
+f()
+</script>
+
+<script id="ex-files" type="text/x-sample-code">
+with open("foo.txt", "w") as f:
+	f.write("Hello, pyodide!\n")
+
+with open("foo.txt", "a") as f:
+	f.write("Bye.\n")
+
+with open("foo.txt") as f:
+	data = f.read()
+print(data)
+</script>
+
+<script id="ex-matplotlib" type="text/x-sample-code">
+import matplotlib.pyplot as pp
+pp.plot([1,3,2])
+</script>
+
+<p>
 <button id="btn-run" type="button">Run</button>
 <button id="btn-stop" type="button" disabled>Stop</button>
 <button id="btn-clear" type="button">Clear</button>
+<span id="busy" class="busy" style="display: none"></span>
 </p>
 
 <pre id="output"></pre>

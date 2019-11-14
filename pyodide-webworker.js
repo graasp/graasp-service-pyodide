@@ -37,15 +37,19 @@ let pendingOutputFlushTime = -1;
 const outputUpdateRate = 10;	// ms
 
 const options = {
-    write: function (str) {
+    write: (str) => {
 	   outputBuffer += str;
     },
-    clearText: function () {
+    clearText: () => {
     	outputBuffer = "";
     	outputClear = true;
     },
-    setFigureURL: function (dataURL) {
+    setFigureURL: (dataURL) => {
         postMessage({cmd: "figure", data: dataURL});
+    },
+    ready: () => {
+	   updateOutput(true);
+	   postMessage({cmd: "done"});
     }
 };
 const p = new Pyodide(options);
@@ -80,14 +84,10 @@ function sendCommand(cmd, data) {
 function run(src) {
 	if (src) {
         p.run(src);
-		updateOutput(true);
 	}
-
-	postMessage({cmd: "done"});
 }
 
 onmessage = (ev) => {
-
 	let src = ev.data;
 
 	if (loaded) {

@@ -12,147 +12,81 @@ Author: Yves Piguet, EPFL, 2019
 
 Usage:
     const options = {
-        btnRunId: "id of button to run code",  // else call p.run(src)
-        btnClearId: "id of button to clear output",  // else call p.clear()
-            // or call p.clearFigure() and p.clearText()
-        srcId: "id of element with source code in value",
-        outputId: "id of element whose textContent receives text output",
         write: function (str) { /* write text output ** },
-            // alternative to outputId
         clearText: function () { /* clear text output ** },
-            // alternative to outputId
         figureId: "id of image which shows graphical output",
         showFigure: function (dataURL) { /* show graphical output ** },
-            // alternative to figureId
         clearFigure: function () { /* clear graphical output ** },
-            // alternative to figureId
     };
     const p = new Pyodide(options);
     p.load();   // optional arg: function called once everything is loaded
-    p.run(src);  // or rely on btnRunId passed as an option to Pyodide constructor
+    p.run(src);
     ...
     let dirtyFilePaths = p.getDirtyFilePaths();
     // fetch dirtyFilePaths in sessionStorage and save them, upon page unload
     // or periodically
 */
 
+/** Simple virtual file system
+*/
 class FileSystem {
-    constructor(getDir, getFile, setFile) {
-        this.getDir = getDir;
-        this.getFile = getFile;
-        this.setFile = setFile;
-    }
-
-    static createInSessionStorage() {
-        return new FileSystem(
-            () => {
-                return Object.keys(self.sessionStorage);
-            },
-            (filename) => {
-                return self.sessionStorage.getItem(filename);
-            },
-            (filename, content) => {
-                self.sessionStorage.setItem(filename, content);
-            }
-        );
-    }
-
-    static createInJSObject() {
-        let fs = {};
-        return new FileSystem(
-            () => {
-                return Object.keys(fs);
-            },
-            (filename) => {
-                return fs[filename];
-            },
-            (filename, content) => {
-                fs[filename] = content;
-            }
-        );
-    }
-
+    /** Create a FileSystem object with data stored in sessionStorage
+        @return {FileSystem}
+    */
     static create() {
         return self.sessionStorage
-            ? FileSystem.createInSessionStorage()
-            : FileSystem.createInJSObject();
+            ? new FileSystemSessionStorage()
+            : new FileSystemJS();
+    }
+}
+
+/** Simple virtual file system with data stored internally
+*/
+class FileSystemJS extends FileSystem {
+    constructor() {
+        super();
+        this.fs = {};
+    }
+
+    getDir() {
+        return Object.keys(this.fs);
+    }
+
+    getFile(filename) {
+        return this.fs[filename];
+    }
+
+    setFile(filename, content) {
+        this.fs[filename] = content;
+    }
+}
+
+/** Simple virtual file system with data stored as separate entries in
+    sessionStorage
+*/
+class FileSystemSessionStorage extends FileSystem {
+    getDir() {
+        return Object.keys(self.sessionStorage);
+    }
+
+    getFile(filename) {
+        return self.sessionStorage.getItem(filename);
+    }
+
+    setFile(filename, content) {
+        self.sessionStorage.setItem(filename, content);
     }
 }
 
 class Pyodide {
     constructor(options) {
-        this.btnRun = options && options.btnRunId
-            ? document.getElementById(options.btnRunId)
-            : null;
-        this.btnClear = options && options.btnClearId
-            ? document.getElementById(options.btnClearId)
-            : null;
-        this.elSrc = options && options.srcId
-            ? document.getElementById(options.srcId)
-            : null;
-        this.elOutput = options && options.outputId
-            ? document.getElementById(options.outputId)
-            : null;
-        this.write = options && options.write ||
-            ((str) => {
-                if (this.elOutput) {
-                    this.elOutput.textContent += str;
-                }
-            });
-        this.clearText = options && options.clearText ||
-            (() => {
-                if (this.elOutput) {
-                    this.elOutput.textContent = "";
-                }
-            });
-        this.figure = options && options.figureId
-            ? document.getElementById(options.figureId)
-            : null;
-        this.setFigureURL = options && options.setFigureURL ||
-            ((url) => {
-                if (this.figure) {
-                    this.figure.src = url;
-                }
-            });
-        this.clearFigure = options && options.clearFigure ||
-            (() => {
-                if (this.moduleNames.indexOf("matplotlib") >= 0) {
-                    pyodide.runPython(`
-                        import matplotlib.pyplot
-                        matplotlib.pyplot.clf()
-                    `);
-                    const transp1by1 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
-                    this.setFigureURL(transp1by1);
-                }
-            });
+        this.ready = options && options.ready || (() => {});
+        this.write = options && options.write || ((str) => {});
+        this.clearText = options && options.clearText || (() => {});
+        this.setFigureURL = options && options.setFigureURL || ((url) => {});
 
         this.moduleNames = [];
         this.dirtyFiles = [];
-
-        if (this.elSrc) {
-            // editor tab key
-            this.elSrc.addEventListener("keydown", (ev) => {
-                if (ev.keyCode === 9) {
-                    // prevent loss of focus in textarea
-                    ev.preventDefault();
-                    ev.cancelBubbles = true;
-                    let text = this.elSrc.value;
-                    let start = this.elSrc.selectionStart, end = this.elSrc.selectionEnd;
-                    text = text.slice(0, start) + "\t" + text.slice(end);
-                    this.elSrc.value = text;
-                    this.elSrc.selectionStart = this.elSrc.selectionEnd = start + 1;
-                    return false;
-                } else if ((ev.keyCode === 13 || ev.key === "Enter") && ev.shiftKey) {
-                    // run
-                    ev.preventDefault();
-                    ev.cancelBubbles = true;
-                    this.run();
-                    return false;
-                }
-                // normal behavior
-                return true;
-            }, false);
-        }
     }
 
     load(then) {
@@ -210,15 +144,6 @@ class Pyodide {
                 os.listdir = __os_listdir
             `);
 
-            if (this.btnRun) {
-                this.btnRun.disabled = false;
-                this.btnRun.addEventListener("click", () => this.run());
-            }
-            if (this.btnClear) {
-                this.btnClear.disabled = false;
-                this.btnClear.addEventListener("click", () => this.clear());
-            }
-
             then && then();
         });
     }
@@ -240,9 +165,6 @@ class Pyodide {
     }
 
     run(src) {
-        this.btnRun && (this.btnRun.disabled = true);
-        this.btnClear && (this.btnClear.disabled = true);
-
         // (re)set stdin and stderr
         pyodide.runPython(`
             import io, sys
@@ -258,9 +180,6 @@ class Pyodide {
             `);
         }
 
-        if (src == undefined) {
-            src = this.elSrc.value;
-        }
         let errMsg = "";
         let moduleNamesLen0 = this.moduleNames.length;
         try {
@@ -287,8 +206,11 @@ class Pyodide {
                 this.moduleNames.length > moduleNamesLen0) {
                 pyodide.loadPackage(this.moduleNames)
                     .then(() => {
-                        this.run();
+                        this.run(src);
                     });
+                // skip output and ui changes performed upon end
+                // since we're not finished yet
+                return false;
             } else {
                 errMsg = err.message;
             }
@@ -297,11 +219,19 @@ class Pyodide {
         let stdout = pyodide.runPython("sys.stdout.getvalue()");
         this.write(stdout + errMsg);
 
-        if (this.btnRun) {
-            this.btnRun.disabled = false;
-        }
-        if (this.btnClear) {
-            this.btnClear.disabled = false;
+        this.ready && this.ready();
+
+        return true;
+    }
+
+    clearFigure() {
+        if (this.moduleNames.indexOf("matplotlib") >= 0) {
+            pyodide.runPython(`
+                import matplotlib.pyplot
+                matplotlib.pyplot.clf()
+            `);
+            const transp1by1 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+            this.setFigureURL(transp1by1);
         }
     }
 
