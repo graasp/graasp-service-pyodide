@@ -86,7 +86,9 @@ class Pyodide {
         this.setFigureURL = options && options.setFigureURL || ((url) => {});
         this.notifyDirtyFile = options && options.notifyDirtyFile || ((path) => {});
 
-        this.moduleNames = [];
+        this.requestedModuleNames = [];
+        this.loadedModuleNames = [];
+        this.failedModuleNames = [];
         this.fs = FileSystem.create();
         this.dirtyFiles = [];
     }
@@ -96,7 +98,7 @@ class Pyodide {
         languagePluginLoader.then(() => {
 
             self.pyodideGlobal = {
-                addModuleName: (name) => this.addModuleName(name),
+                requestModule: (name) => this.requestModule(name),
                 fs: this.fs,
                 markFileDirty: (path) => this.markFileDirty(path)
             };
@@ -106,7 +108,7 @@ class Pyodide {
                 from js import pyodideGlobal
                 class __ImportIntercept:
                     def find_spec(self, name, path, module):
-                        pyodideGlobal.addModuleName(name)
+                        pyodideGlobal.requestModule(name)
                 sys.meta_path.append(__ImportIntercept())
 
                 import io
@@ -151,9 +153,11 @@ class Pyodide {
         });
     }
 
-    addModuleName(name) {
-        if (this.moduleNames.indexOf(name) < 0) {
-            this.moduleNames.push(name);
+    requestModule(name) {
+        if (this.requestedModuleNames.indexOf(name) < 0 &&
+            this.loadedModuleNames.indexOf(name) < 0 &&
+            this.failedModuleNames.indexOf(name) < 0) {
+            this.requestedModuleNames.push(name);
         }
     }
 
@@ -177,15 +181,16 @@ class Pyodide {
         `);
 
         // disable MatPlotLib output (will get it with matplotlib.pyplot.savefig)
-        if (this.moduleNames.indexOf("matplotlib") >= 0) {
+        if (this.loadedModuleNames.indexOf("matplotlib") >= 0) {
             pyodide.runPython(`
                 import matplotlib
                 matplotlib.use('Agg')
             `);
         }
 
+        // run src until all requested modules have been loaded (or failed)
         let errMsg = "";
-        let moduleNamesLen0 = this.moduleNames.length;
+        this.requestedModuleNames = [];
         try {
             self.pyodideGlobal.setFigureURL = (url) => this.setFigureURL(url);
             self.pyodideGlobal.runPythonOutput = pyodide.runPython(src);
@@ -195,7 +200,7 @@ class Pyodide {
                 import sys
                 sys.displayhook(pyodideGlobal.runPythonOutput)
             `);
-            if (this.moduleNames.indexOf("matplotlib") >= 0) {
+            if (this.loadedModuleNames.indexOf("matplotlib") >= 0) {
                 pyodide.runPython(`
                     import matplotlib.pyplot, io, base64, js
                     with io.BytesIO() as buf:
@@ -207,10 +212,15 @@ class Pyodide {
             }
         } catch (err) {
             if (/ModuleNotFoundError/.test(err.message) &&
-                this.moduleNames.length > moduleNamesLen0) {
-                pyodide.loadPackage(this.moduleNames)
+                this.requestedModuleNames.length > 0) {
+                const nextModuleName = this.requestedModuleNames.shift();
+                pyodide.loadPackage(nextModuleName)
                     .then(() => {
+                        this.loadedModuleNames.push(nextModuleName);
                         this.run(src);
+                    })
+                    .catch(() => {
+                        this.failedModuleNames.push(nextModuleName);
                     });
                 // skip output and ui changes performed upon end
                 // since we're not finished yet
@@ -229,7 +239,7 @@ class Pyodide {
     }
 
     clearFigure() {
-        if (this.moduleNames.indexOf("matplotlib") >= 0) {
+        if (this.loadedModuleNames.indexOf("matplotlib") >= 0) {
             pyodide.runPython(`
                 import matplotlib.pyplot
                 matplotlib.pyplot.clf()
