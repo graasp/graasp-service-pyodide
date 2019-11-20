@@ -203,11 +203,12 @@ class Pyodide {
             if (this.loadedModuleNames.indexOf("matplotlib") >= 0) {
                 pyodide.runPython(`
                     import matplotlib.pyplot, io, base64, js
-                    with io.BytesIO() as buf:
-                        matplotlib.pyplot.savefig(buf, format="png")
-                        buf.seek(0)
-                        js.pyodideGlobal.setFigureURL("data:image/png;base64," +
-                            base64.b64encode(buf.read()).decode("ascii"))
+                    if matplotlib.pyplot.get_fignums():
+                        with io.BytesIO() as buf:
+                            matplotlib.pyplot.savefig(buf, format="png")
+                            buf.seek(0)
+                            js.pyodideGlobal.setFigureURL("data:image/png;base64," +
+                                base64.b64encode(buf.read()).decode("ascii"))
                 `);
             }
         } catch (err) {
@@ -242,7 +243,7 @@ class Pyodide {
         if (this.loadedModuleNames.indexOf("matplotlib") >= 0) {
             pyodide.runPython(`
                 import matplotlib.pyplot
-                matplotlib.pyplot.clf()
+                matplotlib.pyplot.close()
             `);
             const transp1by1 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
             this.setFigureURL(transp1by1);

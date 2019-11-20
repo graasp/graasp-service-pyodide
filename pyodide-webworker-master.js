@@ -144,8 +144,10 @@ class PyWorker {
 	}
 
     clearFigure() {
-        const transp1by1 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
-        this.onFigure && this.onFigure(transp1by1);
+        const msg = {
+            cmd: "clearFigure"
+        };
+		this.worker.postMessage(JSON.stringify(msg));
     }
 
 	printToOutput(str) {

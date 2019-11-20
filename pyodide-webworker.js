@@ -11,6 +11,7 @@ Messages sent from main thread to webworker: json, {cmd:string,...}, with:
 - cmd="src": code=Python source code to be executed, or null/undefined to load at startup
 - cmd="get": path=path of file to be sent back with {cmd:"file",data:content}
 - cmd="put": path=path of file to be stored in fs, data=content
+- cmd="clearFigure"
 
 Author: Yves Piguet, EPFL, 2019
 
@@ -110,6 +111,9 @@ onmessage = (ev) => {
         break;
     case "put":
         p.fs.setFile(msg.path, msg.data);
+        break;
+    case "clearFigure":
+        p.clearFigure();
         break;
     }
 
