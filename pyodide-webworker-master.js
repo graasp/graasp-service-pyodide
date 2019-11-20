@@ -18,6 +18,7 @@ pyWorker.onOutput = (text) => { ... };
 pyWorker.onFigure = (imageDataURL) => { ... }
 pyWorker.onTimeout = () => { ... };
 pyWorker.onDirtyFile = (path) => { ... };
+pyWorker.onFile = (path, data) => { ... };
 pyWorker.addCommand("name", (data) => { ... });
 
 pyWorker.run(null);	// preload (optional)
@@ -72,6 +73,9 @@ class PyWorker {
             case "dirty":
                 this.onDirtyFile && this.onDirtyFile(ev.data.data);
                 break;
+            case "file":
+                this.onFile && this.onFile(ev.data.path, ev.data.data);
+                break;
 			case "done":
 				this.isRunning = false;
 				this.onTerminated && this.onTerminated();
@@ -93,7 +97,11 @@ class PyWorker {
 		if (this.worker == null || this.isRunning) {
 			this.create();
 		}
-		this.worker.postMessage(src);
+        const msg = {
+            cmd: "src",
+            code: src
+        };
+		this.worker.postMessage(JSON.stringify(msg));
 		this.isRunning = true;
 		if (this.timeout >= 0) {
 			if (this.timeoutId >= 0) {
@@ -108,6 +116,23 @@ class PyWorker {
 			}, 1000 * this.timeout);
 		}
 	}
+
+    getFile(path) {
+        const msg = {
+            cmd: "get",
+            path: path
+        };
+		this.worker.postMessage(JSON.stringify(msg));
+    }
+
+    putFile(path, data) {
+        const msg = {
+            cmd: "put",
+            path: path,
+            data: data
+        };
+		this.worker.postMessage(JSON.stringify(msg));
+    }
 
 	preload() {
 		this.run(null);

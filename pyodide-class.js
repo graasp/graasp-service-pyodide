@@ -87,6 +87,7 @@ class Pyodide {
         this.notifyDirtyFile = options && options.notifyDirtyFile || ((path) => {});
 
         this.moduleNames = [];
+        this.fs = FileSystem.create();
         this.dirtyFiles = [];
     }
 
@@ -96,7 +97,7 @@ class Pyodide {
 
             self.pyodideGlobal = {
                 addModuleName: (name) => this.addModuleName(name),
-                fs: FileSystem.create(),
+                fs: this.fs,
                 markFileDirty: (path) => this.markFileDirty(path)
             };
 

@@ -7,6 +7,11 @@ Test of pyodide, with
 	- dynamic loading of modules referenced by import statements
 	- runs asynchronously in a webworker, with timeout and interruption
 
+Messages sent from main thread to webworker: json, {cmd:string,...}, with:
+- cmd="src": code=Python source code to be executed, or null/undefined to load at startup
+- cmd="get": path=path of file to be sent back with {cmd:"file",data:content}
+- cmd="put": path=path of file to be stored in fs, data=content
+
 Author: Yves Piguet, EPFL, 2019
 
 */
@@ -91,12 +96,21 @@ function run(src) {
 }
 
 onmessage = (ev) => {
-	let src = ev.data;
-
-	if (loaded) {
-		run(src);
-	} else {
-        p.load(() => run(src));
-	}
+    let msg = JSON.parse(ev.data);
+    switch (msg.cmd) {
+    case "src":
+    	if (loaded) {
+    		run(msg.code);
+    	} else {
+            p.load(() => run(msg.code || ""));
+    	}
+        break;
+    case "get":
+        postMessage({cmd: "file", path: msg.path, data: p.fs.getFile(msg.path)});
+        break;
+    case "put":
+        p.fs.setFile(msg.path, msg.data);
+        break;
+    }
 
 }
