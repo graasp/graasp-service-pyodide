@@ -17,6 +17,7 @@ Usage:
         clearText: function () { /* clear text output ** },
         setFigureURL: function (dataURL) { /* show graphical output ** },
         notifyDirtyFile: function (path) { /* notify that a file has been modified ** },
+        handleInput: boolean /* see below **
     };
     const p = new Pyodide(options);
     p.load();   // optional arg: function called once everything is loaded
@@ -25,6 +26,14 @@ Usage:
     let dirtyFilePaths = p.getDirtyFilePaths();
     // fetch dirtyFilePaths in sessionStorage and save them, upon page unload
     // or periodically
+
+With option handleInput=true, some support for input function is provided.
+It's limited to calls outside any function definition. The whole code is
+compiled as a coroutine, replacing "input(...)" with "yield(...)",
+and the function is executed as a coroutine, sending input string (first
+None) and receiving prompt for next input until a StopIteration exception
+is raised.
+
 */
 
 /** Simple virtual file system
@@ -85,6 +94,10 @@ class Pyodide {
         this.clearText = options && options.clearText || (() => {});
         this.setFigureURL = options && options.setFigureURL || ((url) => {});
         this.notifyDirtyFile = options && options.notifyDirtyFile || ((path) => {});
+
+        this.handleInput = options && options.handleInput || false;
+        this.requestInput = false;
+        this.inputPrompt = null;
 
         this.requestedModuleNames = [];
         this.loadedModuleNames = [];
@@ -197,13 +210,42 @@ class Pyodide {
             `);
         }
 
+        // define one of the global variables src (no input) or corout (input)
+        if (this.handleInput) {
+            // convert src to a coroutine
+            let cosrc = src
+                .replace(/input\(\s*\)/g, "yield (None, locals())")
+                .replace(/input\(([^\)]*)\)/g, "yield ($1, locals())");
+                    // should be made more robust
+            let globalVarNames = Object.keys(pyodide.globals.global_variables);
+            cosrc = [`src = None\ndef corout(${globalVarNames.join(",")}):`].concat(cosrc.split("\n")).join("\n\t") + "\n";
+            pyodide.runPython(cosrc);
+        } else {
+            pyodide.globals.src = src;
+        }
+
         // run src until all requested modules have been loaded (or failed)
-        pyodide.globals.src = src;
         let errMsg = "";
         this.requestedModuleNames = [];
         try {
             self.pyodideGlobal.setFigureURL = (url) => this.setFigureURL(url);
-            pyodide.runPython("execute_code(src)");
+            if (this.handleInput) {
+                this.requestInput = false;
+                try {
+                    pyodide.runPython(`
+                        co = corout(**global_variables)
+                        next_prompt, new_global_variables = co.send(None)
+                    `);
+                    this.inputPrompt = pyodide.globals.next_prompt;
+                    this.requestInput = true;
+                } catch (e) {
+                    if (!/StopIteration/.test(err.message)) {
+                        throw e;
+                    }
+                }
+            } else {
+                pyodide.runPython("execute_code(src)");
+            }
 
             if (this.loadedModuleNames.indexOf("matplotlib") >= 0) {
                 pyodide.runPython(`
@@ -242,6 +284,37 @@ class Pyodide {
         this.ready && this.ready();
 
         return true;
+    }
+
+    submitInput(str) {
+        if (this.requestInput) {
+            // (re)set stdin and stderr
+            pyodide.runPython(`
+                import io, sys
+                sys.stdout = io.StringIO()
+                sys.stderr = sys.stdout
+            `);
+
+            this.requestInput = false;
+            let errMsg = "";
+            try {
+                pyodide.globals.input_string = str;
+                pyodide.runPython(`
+                    next_prompt, new_global_variables = co.send(input_string)
+                `);
+                this.inputPrompt = pyodide.globals.next_prompt;
+                this.requestInput = true;
+            } catch (err) {
+                if (!/StopIteration/.test(err.message)) {
+                    errMsg = err.message;
+                }
+            }
+
+            let stdout = pyodide.runPython("sys.stdout.getvalue()");
+            this.write(stdout + errMsg);
+
+            this.ready && this.ready();
+        }
     }
 
     clearFigure() {
