@@ -147,6 +147,15 @@ class Pyodide {
                 def __os_listdir(path="."):
                     return list(js.pyodideGlobal.fs.getDir())
                 os.listdir = __os_listdir
+
+                # user code execution
+                global_variables = {}
+                def execute_code(src):
+                    try:
+                        code = compile(src, "<stdin>", mode="single")
+                    except SyntaxError:
+                        code = compile(src, "<stdin>", mode="exec")
+                    exec(code, global_variables)
             `);
 
             then && then();
@@ -189,17 +198,13 @@ class Pyodide {
         }
 
         // run src until all requested modules have been loaded (or failed)
+        pyodide.globals.src = src;
         let errMsg = "";
         this.requestedModuleNames = [];
         try {
             self.pyodideGlobal.setFigureURL = (url) => this.setFigureURL(url);
-            self.pyodideGlobal.runPythonOutput = pyodide.runPython(src);
+            pyodide.runPython("execute_code(src)");
 
-            pyodide.runPython(`
-                from js import pyodideGlobal
-                import sys
-                sys.displayhook(pyodideGlobal.runPythonOutput)
-            `);
             if (this.loadedModuleNames.indexOf("matplotlib") >= 0) {
                 pyodide.runPython(`
                     import matplotlib.pyplot, io, base64, js

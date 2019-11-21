@@ -103,7 +103,10 @@ onmessage = (ev) => {
     	if (loaded) {
     		run(msg.code);
     	} else {
-            p.load(() => run(msg.code || ""));
+            p.load(() => {
+                run(msg.code || "");
+                loaded = true;
+            });
     	}
         break;
     case "get":
