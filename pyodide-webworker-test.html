@@ -82,10 +82,10 @@ window.addEventListener("load", () => {
 			ev.preventDefault();
 			ev.cancelBubbles = true;
 			let text = elSrc.value;
-			let start = this.selectionStart, end = this.selectionEnd;
+			let start = elSrc.selectionStart, end = elSrc.selectionEnd;
 			text = text.slice(0, start) + "\t" + text.slice(end);
 			elSrc.value = text;
-			this.selectionStart = this.selectionEnd = start + 1;
+			elSrc.selectionStart = elSrc.selectionEnd = start + 1;
 			return false;
 		}
 		// normal behavior
