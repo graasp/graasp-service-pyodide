@@ -120,7 +120,7 @@ window.addEventListener("load", () => {
 
 <h3>Test of Pyodide in a webworker</h3>
 
-<textarea cols="80" rows="10" id="src" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+<textarea cols="80" rows="10" id="src" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" style="font-family: monospace;">
 def f():
   for i in range(10):
     print(i)
@@ -134,6 +134,7 @@ Sample code:
 <a onclick="document.getElementById('src').value = document.getElementById('ex-files').textContent.trim();" href="#">files</a>
 <a onclick="document.getElementById('src').value = document.getElementById('ex-numpy').textContent.trim();" href="#">numpy</a>
 <a onclick="document.getElementById('src').value = document.getElementById('ex-matplotlib').textContent.trim();" href="#">matplotlib</a>
+<a onclick="document.getElementById('src').value = document.getElementById('ex-pandas').textContent.trim();" href="#">pandas</a>
 </p>
 
 <script id="ex-def" type="text/x-sample-code">
@@ -172,6 +173,31 @@ print("inv b =", bi)
 <script id="ex-matplotlib" type="text/x-sample-code">
 import matplotlib.pyplot as pp
 pp.plot([1,3,2])
+</script>
+
+<script id="ex-pandas" type="text/x-sample-code">
+# based on https://pandas.pydata.org/pandas-docs/stable/getting_started/10min.html
+
+import numpy as np
+import pandas as pd
+
+s = pd.Series([1, 3, 5, np.nan, 6, 8])
+print(s)
+
+dates = pd.date_range('20130101', periods=6)
+print(dates)
+
+df = pd.DataFrame(np.random.randn(6, 4), index=dates, columns=list('ABCD'))
+print(df)
+
+df2 = pd.DataFrame({'A': 1.,
+                    'B': pd.Timestamp('20130102'),
+                    'C': pd.Series(1, index=list(range(4)), dtype='float32'),
+                    'D': np.array([3] * 4, dtype='int32'),
+                    'E': pd.Categorical(["test", "train", "test", "train"]),
+                    'F': 'foo'})
+print(df2)
+print(df2.dtypes)
 </script>
 
 <p>
