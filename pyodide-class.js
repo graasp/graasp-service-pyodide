@@ -29,10 +29,13 @@ Usage:
 
 With option handleInput=true, some support for input function is provided.
 It's limited to calls outside any function definition. The whole code is
-compiled as a coroutine, replacing "input(...)" with "(yield(...,locals()))",
+compiled as a coroutine, replacing "input(...)" with "(yield(False,...,locals()))",
 and the function is executed as a coroutine, sending input string (first
 None) and receiving prompt for next input until a StopIteration exception
-is raised. To enable it:
+is raised. A last yield(True,None,locals()) is executed at the end to
+assign variables changed after the last input(); True (=done) means that
+the code has completed.
+To enable it:
 - pass handleInput:true in Pyodide constructor options
 - after executing method p.run(src), check if p.requestInput is true; if it is,
 get input from the user with prompt p.inputPrompt (null if None was passed to
@@ -223,13 +226,14 @@ class Pyodide {
         if (this.handleInput) {
             // convert src to a coroutine
             let cosrc = src
-                .replace(/input\(\s*\)/g, "(yield (None, locals()))")
-                .replace(/input\(([^\)]*)\)/g, "(yield ($1, locals()))");
+                .replace(/input\(\s*\)/g, "(yield (False, None, locals()))")
+                .replace(/input\(([^\)]*)\)/g, "(yield (False, $1, locals()))");
                     // should be made more robust
             handleInput = src !== cosrc;
             if (handleInput) {
                 let globalVarNames = Object.keys(pyodide.globals.global_variables);
-                cosrc = [`src = None\ndef corout(${globalVarNames.join(",")}):`].concat(cosrc.split("\n")).join("\n\t") + "\n";
+                cosrc = [`src = None\ndef corout(${globalVarNames.join(",")}):`].concat(cosrc.split("\n")).join("\n\t") +
+                    "\n\tyield (True, None, locals())\n";
                 pyodide.runPython(cosrc);
             }
         }
@@ -247,10 +251,13 @@ class Pyodide {
                 try {
                     pyodide.runPython(`
                         co = corout(**global_variables)
-                        next_prompt, new_global_variables = co.send(None)
+                        done, next_prompt, new_global_variables = co.send(None)
+                        global_variables.update(new_global_variables)
                     `);
-                    this.inputPrompt = pyodide.globals.next_prompt;
-                    this.requestInput = true;
+                    if (!pyodide.globals.done) {
+                        this.inputPrompt = pyodide.globals.next_prompt;
+                        this.requestInput = true;
+                    }
                 } catch (err) {
                     if (!/StopIteration/.test(err.message)) {
                         throw err;
@@ -314,10 +321,13 @@ class Pyodide {
                 self.input_string = str;
                 pyodide.runPython(`
                     import js
-                    next_prompt, new_global_variables = co.send(js.input_string)
+                    done, next_prompt, new_global_variables = co.send(js.input_string)
+                    global_variables.update(new_global_variables)
                 `);
-                this.inputPrompt = pyodide.globals.next_prompt;
-                this.requestInput = true;
+                if (!pyodide.globals.done) {
+                    this.inputPrompt = pyodide.globals.next_prompt;
+                    this.requestInput = true;
+                }
             } catch (err) {
                 if (!/StopIteration/.test(err.message)) {
                     errMsg = err.message;
