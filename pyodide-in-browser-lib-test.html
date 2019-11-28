@@ -52,28 +52,35 @@ Author: Yves Piguet, EPFL, 2019
                 });
                 p.load();
 
+                function checkRequestInput() {
+                    if (p.requestInput) {
+                        elInput.style.display = "block";
+                        elInputPrompt.textContent = p.inputPrompt || "Input: ";
+                        fldInput.value = "";
+                        fldInput.focus();
+                        fldInput.select();
+                    }
+                }
+
+                function submitInput() {
+                    let str = fldInput.value;
+                    elInput.style.display = "none";
+                    p.submitInput(str);
+                    checkRequestInput();
+                }
+
                 btnRun.addEventListener("click", () => {
                     btnRun.disabled = true;
                     btnClear.disabled = true;
                     busy.style.display = "inline";
                     p.run(src.value);
-                    if (p.requestInput) {
-                        elInput.style.display = "block";
-                        elInputPrompt.textContent = p.inputPrompt || "Input:";
-                    }
+                    checkRequestInput();
                 });
                 btnClear.addEventListener("click", () => {
                     p.clear();
                 });
-                btnInput.addEventListener("click", () => {
-                    let str = fldInput.value;
-                    elInput.style.display = "none";
-                    p.submitInput(str);
-                    if (p.requestInput) {
-                        elInput.style.display = "block";
-                        elInputPrompt.textContent = p.inputPrompt || "Input:";
-                    }
-                });
+                btnInput.addEventListener("click", submitInput);
+                fldInput.addEventListener("change", submitInput);
 
                 // editor tab key
                 src.addEventListener("keydown", (ev) => {
@@ -129,7 +136,7 @@ Author: Yves Piguet, EPFL, 2019
 
 <h3>Test of Pyodide in the browser main thread</h3>
 
-<textarea cols="80" rows="10" id="src" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+<textarea cols="80" rows="10" id="src" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" style="font-family: monospace; tab-size: 4;">
 str = input("?")
 print(int(str) + 10)
 </textarea>

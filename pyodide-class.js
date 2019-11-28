@@ -29,12 +29,20 @@ Usage:
 
 With option handleInput=true, some support for input function is provided.
 It's limited to calls outside any function definition. The whole code is
-compiled as a coroutine, replacing "input(...)" with "yield(...)",
+compiled as a coroutine, replacing "input(...)" with "(yield(...,locals()))",
 and the function is executed as a coroutine, sending input string (first
 None) and receiving prompt for next input until a StopIteration exception
-is raised.
+is raised. To enable it:
+- pass handleInput:true in Pyodide constructor options
+- after executing method p.run(src), check if p.requestInput is true; if it is,
+get input from the user with prompt p.inputPrompt (null if None was passed to
+Python's function "input"), execute p.submitInput(input), and continue checking
+p.requestInput and getting more input from the user until p.requestInput is false.
 
-*/
+Other limitations: "input(...)" is replaced everywhere it occurs in source code,
+event in string literals, comments, and function definitions where it will cause
+errors. With any replacement, since code is moved inside a function, implicit
+display of expression results isn't available anymore.
 
 /** Simple virtual file system
 */
@@ -211,16 +219,21 @@ class Pyodide {
         }
 
         // define one of the global variables src (no input) or corout (input)
+        let handleInput = false;
         if (this.handleInput) {
             // convert src to a coroutine
             let cosrc = src
-                .replace(/input\(\s*\)/g, "yield (None, locals())")
-                .replace(/input\(([^\)]*)\)/g, "yield ($1, locals())");
+                .replace(/input\(\s*\)/g, "(yield (None, locals()))")
+                .replace(/input\(([^\)]*)\)/g, "(yield ($1, locals()))");
                     // should be made more robust
-            let globalVarNames = Object.keys(pyodide.globals.global_variables);
-            cosrc = [`src = None\ndef corout(${globalVarNames.join(",")}):`].concat(cosrc.split("\n")).join("\n\t") + "\n";
-            pyodide.runPython(cosrc);
-        } else {
+            handleInput = src !== cosrc;
+            if (handleInput) {
+                let globalVarNames = Object.keys(pyodide.globals.global_variables);
+                cosrc = [`src = None\ndef corout(${globalVarNames.join(",")}):`].concat(cosrc.split("\n")).join("\n\t") + "\n";
+                pyodide.runPython(cosrc);
+            }
+        }
+        if (!handleInput) {
             pyodide.globals.src = src;
         }
 
@@ -229,7 +242,7 @@ class Pyodide {
         this.requestedModuleNames = [];
         try {
             self.pyodideGlobal.setFigureURL = (url) => this.setFigureURL(url);
-            if (this.handleInput) {
+            if (handleInput) {
                 this.requestInput = false;
                 try {
                     pyodide.runPython(`
@@ -238,9 +251,9 @@ class Pyodide {
                     `);
                     this.inputPrompt = pyodide.globals.next_prompt;
                     this.requestInput = true;
-                } catch (e) {
+                } catch (err) {
                     if (!/StopIteration/.test(err.message)) {
-                        throw e;
+                        throw err;
                     }
                 }
             } else {
