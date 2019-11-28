@@ -8,10 +8,21 @@ Test of pyodide, with
 	- runs asynchronously in a webworker, with timeout and interruption
 
 Messages sent from main thread to webworker: json, {cmd:string,...}, with:
-- cmd="src": code=Python source code to be executed, or null/undefined to load at startup
+- cmd="run": code=Python source code to be executed, or null/undefined to load at startup
+- cmd="submit": str=string provided by the user
 - cmd="get": path=path of file to be sent back with {cmd:"file",data:content}
 - cmd="put": path=path of file to be stored in fs, data=content
 - cmd="clearFigure"
+
+Messages sent from webworker to main thread: json, {cmd:string,...}, with:
+- cmd="clear": clear output
+- cmd="cmd:xxx": additional command with data sent by sendCommand
+- cmd="done": sent once execution is completed
+- cmd="dirty": data=path of file which has been modified
+- cmd="figure": data=dataurl
+- cmd="file": path=string, data=string=file content, reply to cmd="get"
+- cmd="input": prompt=string or null, expect a message back with cmd="submit"
+- cmd="print": data=string to be appeded to the output
 
 Author: Yves Piguet, EPFL, 2019
 
@@ -59,7 +70,8 @@ const options = {
     },
     notifyDirtyFile: (path) => {
         postMessage({cmd: "dirty", data: path});
-    }
+    },
+    handleInput: true
 };
 const p = new Pyodide(options);
 
@@ -93,13 +105,23 @@ function sendCommand(cmd, data) {
 function run(src) {
 	if (src) {
         p.run(src);
+        if (p.requestInput) {
+            postMessage({cmd: "input", prompt: p.inputPrompt});
+        }
 	}
+}
+
+function submitInput(str) {
+    p.submitInput(str);
+    if (p.requestInput) {
+        postMessage({cmd: "input", prompt: p.inputPrompt});
+    }
 }
 
 onmessage = (ev) => {
     let msg = JSON.parse(ev.data);
     switch (msg.cmd) {
-    case "src":
+    case "run":
     	if (loaded) {
     		run(msg.code);
     	} else {
@@ -108,6 +130,9 @@ onmessage = (ev) => {
                 loaded = true;
             });
     	}
+        break;
+    case "submit":
+        submitInput(msg.str);
         break;
     case "get":
         postMessage({cmd: "file", path: msg.path, data: p.fs.getFile(msg.path)});

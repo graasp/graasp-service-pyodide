@@ -26,6 +26,7 @@ window.addEventListener("load", () => {
 	let btnClear = document.getElementById("btn-clear");
     let btnDirty = document.getElementById("btn-dirty");
     let elBusy = document.getElementById("busy");
+	let btnSubmit = document.getElementById("btn-submit");
 
 	let pyWorker = new PyWorker("pyodide-webworker.js");
     let dirtyFiles = [];
@@ -54,6 +55,17 @@ window.addEventListener("load", () => {
             pyWorker.getFile(path);
         });
     }, false);
+    function submit() {
+        let str = document.getElementById("input-field").value;
+        pyWorker.submitInput(str);
+		btnRun.disabled = true;
+		btnStop.disabled = false;
+        elBusy.style.display = "inline-block";
+        document.getElementById("input").style.display = "none";
+    }
+    btnSubmit.addEventListener("click", submit, false);
+    document.getElementById("input").addEventListener("change", submit, false);
+
 	pyWorker.onTerminated = () => {
 		btnStop.disabled = true;
 		btnRun.disabled = false;
@@ -74,6 +86,14 @@ window.addEventListener("load", () => {
 	pyWorker.onTimeout = () => {
 		pyWorker.printToOutput("\nTimeout\n");
 	};
+    pyWorker.onInput = (prompt) => {
+        document.getElementById("input").style.display = "block";
+        document.getElementById("input-prompt").textContent = prompt || "Input: ";
+        let fldInput = document.getElementById("input-field");
+        fldInput.value = "";
+        fldInput.focus();
+        fldInput.select();
+    };
 
 	// editor tab key
 	elSrc.addEventListener("keydown", (ev) => {
@@ -120,7 +140,7 @@ window.addEventListener("load", () => {
 
 <h3>Test of Pyodide in a webworker</h3>
 
-<textarea cols="80" rows="10" id="src" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" style="font-family: monospace;">
+<textarea cols="80" rows="10" id="src" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" style="font-family: monospace; tab-size: 4;">
 def f():
   for i in range(10):
     print(i)
@@ -131,6 +151,7 @@ f()
 <p>
 Sample code:
 <a onclick="document.getElementById('src').value = document.getElementById('ex-def').textContent.trim();" href="#">def</a>
+<a onclick="document.getElementById('src').value = document.getElementById('ex-input').textContent.trim();" href="#">input</a>
 <a onclick="document.getElementById('src').value = document.getElementById('ex-files').textContent.trim();" href="#">files</a>
 <a onclick="document.getElementById('src').value = document.getElementById('ex-numpy').textContent.trim();" href="#">numpy</a>
 <a onclick="document.getElementById('src').value = document.getElementById('ex-matplotlib').textContent.trim();" href="#">matplotlib</a>
@@ -143,6 +164,12 @@ def f():
     print(i)
 
 f()
+</script>
+
+<script id="ex-input" type="text/x-sample-code">
+str = input("Number: ")
+print("10 times", str, "is", 10 * float(str))
+print(input("First: "), input("Second: "), input("Third: "))
 </script>
 
 <script id="ex-files" type="text/x-sample-code">
@@ -206,6 +233,12 @@ print(df2.dtypes)
 <button id="btn-clear" type="button">Clear</button>
 <button id="btn-dirty" type="button">Dirty</button>
 <span id="busy" class="busy" style="display: none"></span>
+</p>
+
+<p id="input" style="display: none">
+<span id="input-prompt"></span>
+<input id="input-field" value="">
+<button id="btn-submit">Enter</button>
 </p>
 
 <pre id="output"></pre>

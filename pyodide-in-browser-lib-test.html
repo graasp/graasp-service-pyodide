@@ -30,7 +30,7 @@ Author: Yves Piguet, EPFL, 2019
                 var figure = document.getElementById("figure");
                 var elInput = document.getElementById("input");
                 var elInputPrompt = document.getElementById("input-prompt");
-                var fldInput = document.getElementById("input-input");
+                var fldInput = document.getElementById("input-field");
                 var btnInput = document.getElementById("input-submit");
 
                 let p = new Pyodide({
@@ -151,14 +151,14 @@ a.shape
 -->
 
 <p>
-<button id="btn-run" type="button" disabled>Run</button>
-<button id="btn-clear" type="button" disabled>Clear</button>
+<button id="btn-run" disabled>Run</button>
+<button id="btn-clear" disabled>Clear</button>
 <span id="busy" class="busy" style="display: none"></span>
 </p>
 
 <p id="input" style="display: none">
 <span id="input-prompt"></span>
-<input id="input-input" value="">
+<input id="input-field" value="">
 <button id="input-submit">Enter</button>
 </p>
 

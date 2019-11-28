@@ -76,6 +76,10 @@ class PyWorker {
             case "file":
                 this.onFile && this.onFile(ev.data.path, ev.data.data);
                 break;
+            case "input":
+				this.isRunning = false;
+                this.onInput && this.onInput(ev.data.prompt);
+                break;
 			case "done":
 				this.isRunning = false;
 				this.onTerminated && this.onTerminated();
@@ -93,16 +97,7 @@ class PyWorker {
 		});
 	}
 
-	run(src) {
-		if (this.worker == null || this.isRunning) {
-			this.create();
-		}
-        const msg = {
-            cmd: "src",
-            code: src
-        };
-		this.worker.postMessage(JSON.stringify(msg));
-		this.isRunning = true;
+    handleTimeout() {
 		if (this.timeout >= 0) {
 			if (this.timeoutId >= 0) {
 				clearTimeout(this.timeoutId);
@@ -115,7 +110,32 @@ class PyWorker {
 				this.timeoutId = -1;
 			}, 1000 * this.timeout);
 		}
+    }
+
+	run(src) {
+		if (this.worker == null || this.isRunning) {
+			this.create();
+		}
+        const msg = {
+            cmd: "run",
+            code: src
+        };
+		this.worker.postMessage(JSON.stringify(msg));
+		this.isRunning = true;
+        this.handleTimeout();
 	}
+
+    submitInput(str) {
+        if (this.worker && !this.isRunning) {
+            const msg = {
+                cmd: "submit",
+                str: str
+            };
+    		this.worker.postMessage(JSON.stringify(msg));
+    		this.isRunning = true;
+            this.handleTimeout();
+        }
+    }
 
     getFile(path) {
         const msg = {
