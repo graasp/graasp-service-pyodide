@@ -311,9 +311,10 @@ class Pyodide {
             this.requestInput = false;
             let errMsg = "";
             try {
-                pyodide.globals.input_string = str;
+                self.input_string = str;
                 pyodide.runPython(`
-                    next_prompt, new_global_variables = co.send(input_string)
+                    import js
+                    next_prompt, new_global_variables = co.send(js.input_string)
                 `);
                 this.inputPrompt = pyodide.globals.next_prompt;
                 this.requestInput = true;
