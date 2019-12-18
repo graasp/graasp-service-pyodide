@@ -27,6 +27,7 @@ window.addEventListener("load", () => {
     let btnDirty = document.getElementById("btn-dirty");
     let elBusy = document.getElementById("busy");
 	let btnSubmit = document.getElementById("btn-submit");
+	let btnCancel = document.getElementById("btn-cancel");
 
 	let pyWorker = new PyWorker("pyodide-webworker.js");
     let dirtyFiles = [];
@@ -63,7 +64,12 @@ window.addEventListener("load", () => {
         elBusy.style.display = "inline-block";
         document.getElementById("input").style.display = "none";
     }
+    function cancel() {
+        pyWorker.cancelInput();
+        document.getElementById("input").style.display = "none";
+    }
     btnSubmit.addEventListener("click", submit, false);
+    btnCancel.addEventListener("click", cancel, false);
     document.getElementById("input").addEventListener("keydown", (ev) => {
 		if (ev.keyCode === 10 || ev.keyCode === 13) {
             submit();
@@ -246,6 +252,7 @@ print(df2.dtypes)
 <span id="input-prompt"></span>
 <input id="input-field" value="">
 <button id="btn-submit">Enter</button>
+<button id="btn-cancel">Cancel</button>
 </p>
 
 <pre id="output"></pre>

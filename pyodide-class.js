@@ -337,6 +337,17 @@ class Pyodide {
         }
     }
 
+    cancelInput() {
+        if (this.requestInput) {
+            this.requestInput = false;
+            try {
+                pyodide.runPython(`
+                    co.close()
+                `);
+            } catch (err) {}
+        }
+    }
+
     clearFigure() {
         if (this.loadedModuleNames.indexOf("matplotlib") >= 0) {
             pyodide.runPython(`

@@ -148,6 +148,15 @@ class PyWorker {
         }
     }
 
+    cancelInput() {
+        if (this.worker && !this.isRunning) {
+            const msg = {
+                cmd: "cancel"
+            };
+    		this.worker.postMessage(JSON.stringify(msg));
+        }
+    }
+
     getFile(path) {
         const msg = {
             cmd: "get",

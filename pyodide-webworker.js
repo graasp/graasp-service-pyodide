@@ -115,6 +115,10 @@ function submitInput(str) {
     postExec();
 }
 
+function cancelInput(str) {
+    p.cancelInput();
+}
+
 onmessage = (ev) => {
     let msg = JSON.parse(ev.data);
     switch (msg.cmd) {
@@ -136,6 +140,9 @@ onmessage = (ev) => {
         break;
     case "submit":
         submitInput(msg.str);
+        break;
+    case "cancel":
+        cancelInput();
         break;
     case "get":
         postMessage({cmd: "file", path: msg.path, data: p.fs.getFile(msg.path)});
