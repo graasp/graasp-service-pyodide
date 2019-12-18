@@ -34,11 +34,6 @@ Author: Yves Piguet, EPFL, 2019
                 var btnInput = document.getElementById("input-submit");
 
                 let p = new Pyodide({
-                    ready: () => {
-                        btnRun.disabled = false;
-                        btnClear.disabled = false;
-                        busy.style.display = "none";
-                    },
                     clearText: () => {
                         output.textContent = "";
                     },
@@ -52,7 +47,10 @@ Author: Yves Piguet, EPFL, 2019
                 });
                 p.load();
 
-                function checkRequestInput() {
+                function postExec() {
+                    btnRun.disabled = false;
+                    btnClear.disabled = false;
+                    busy.style.display = "none";
                     if (p.requestInput) {
                         elInput.style.display = "block";
                         elInputPrompt.textContent = p.inputPrompt || "Input: ";
@@ -66,7 +64,7 @@ Author: Yves Piguet, EPFL, 2019
                     let str = fldInput.value;
                     elInput.style.display = "none";
                     p.submitInput(str);
-                    checkRequestInput();
+                    postExec();
                 }
 
                 btnRun.addEventListener("click", () => {
@@ -74,7 +72,7 @@ Author: Yves Piguet, EPFL, 2019
                     btnClear.disabled = true;
                     busy.style.display = "inline";
                     p.run(src.value);
-                    checkRequestInput();
+                    postExec();
                 });
                 btnClear.addEventListener("click", () => {
                     p.clear();
@@ -99,6 +97,7 @@ Author: Yves Piguet, EPFL, 2019
                         ev.preventDefault();
                         ev.cancelBubbles = true;
                         p.run(src.value);
+                        postExec();
                         return false;
                     }
                     // normal behavior

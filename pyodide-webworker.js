@@ -64,10 +64,6 @@ const options = {
     setFigureURL: (dataURL) => {
         postMessage({cmd: "figure", data: dataURL});
     },
-    ready: () => {
-	   updateOutput(true);
-	   postMessage({cmd: "done"});
-    },
     notifyDirtyFile: (path) => {
         postMessage({cmd: "dirty", data: path});
     },
@@ -75,6 +71,13 @@ const options = {
 };
 const p = new Pyodide(options);
 
+function postExec() {
+    updateOutput(true);
+    postMessage({cmd: "done"});
+    if (p.requestInput) {
+        postMessage({cmd: "input", prompt: p.inputPrompt});
+    }
+}
 
 function updateOutput(forced) {
 	let currentTime = Date.now();
@@ -103,30 +106,30 @@ function sendCommand(cmd, data) {
 }
 
 function run(src) {
-	if (src) {
-        p.run(src);
-        if (p.requestInput) {
-            postMessage({cmd: "input", prompt: p.inputPrompt});
-        }
-	}
+    p.run(src);
+    postExec();
 }
 
 function submitInput(str) {
     p.submitInput(str);
-    if (p.requestInput) {
-        postMessage({cmd: "input", prompt: p.inputPrompt});
-    }
+    postExec();
 }
 
 onmessage = (ev) => {
     let msg = JSON.parse(ev.data);
     switch (msg.cmd) {
+    case "preload":
+        p.load(() => {
+            loaded = true;
+            postMessage({cmd: "done"});
+        });
+        break;
     case "run":
     	if (loaded) {
     		run(msg.code);
     	} else {
             p.load(() => {
-                run(msg.code || "");
+                run(msg.code);
                 loaded = true;
             });
     	}

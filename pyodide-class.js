@@ -12,7 +12,6 @@ Author: Yves Piguet, EPFL, 2019
 
 Usage:
     const options = {
-        ready: function () { /* notify that running is finished ** },
         write: function (str) { /* write text output ** },
         clearText: function () { /* clear text output ** },
         setFigureURL: function (dataURL) { /* show graphical output ** },
@@ -100,7 +99,6 @@ class FileSystemSessionStorage extends FileSystem {
 
 class Pyodide {
     constructor(options) {
-        this.ready = options && options.ready || (() => {});
         this.write = options && options.write || ((str) => {});
         this.clearText = options && options.clearText || (() => {});
         this.setFigureURL = options && options.setFigureURL || ((url) => {});
@@ -301,8 +299,6 @@ class Pyodide {
         let stdout = pyodide.runPython("sys.stdout.getvalue()");
         this.write(stdout + errMsg);
 
-        this.ready && this.ready();
-
         return true;
     }
 
@@ -336,8 +332,6 @@ class Pyodide {
 
             let stdout = pyodide.runPython("sys.stdout.getvalue()");
             this.write(stdout + errMsg);
-
-            this.ready && this.ready();
         }
     }
 
