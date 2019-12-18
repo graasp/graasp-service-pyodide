@@ -125,9 +125,11 @@ class PyWorker {
 		if (this.worker == null || this.isRunning) {
 			this.create();
 		}
-        const msg = {
+        const msg = src != null ? {
             cmd: "run",
             code: src
+        } : {
+            cmd: "preload"
         };
 		this.worker.postMessage(JSON.stringify(msg));
 		this.isRunning = true;

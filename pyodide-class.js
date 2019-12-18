@@ -171,7 +171,9 @@ class Pyodide {
                 os.listdir = __os_listdir
 
                 # user code execution
-                global_variables = {}
+                global_variables = {
+                    "open": open
+                }
                 def execute_code(src):
                     try:
                         code = compile(src, "<stdin>", mode="single")
