@@ -41,10 +41,8 @@ get input from the user with prompt p.inputPrompt (null if None was passed to
 Python's function "input"), execute p.submitInput(input), and continue checking
 p.requestInput and getting more input from the user until p.requestInput is false.
 
-Other limitations: "input(...)" is replaced everywhere it occurs in source code,
-event in string literals, comments, and function definitions where it will cause
-errors. With any replacement, since code is moved inside a function, implicit
-display of expression results isn't available anymore.
+Other limitations: with any replacement, since code is moved inside a function,
+implicit display of expression results isn't available anymore.
 
 /** Simple virtual file system
 */
@@ -221,24 +219,138 @@ class Pyodide {
             `);
         }
 
+        if (this.handleInput) {
+            pyodide.runPython(`
+                class CodeWithInputEvaluator:
+
+                    def __init__(self, src, global_variables):
+
+                        import ast
+
+                        def check_node(node, block_reason=None):
+                            """Check that input function is called only from where it's supported,
+                            i.e. at top-level if block_reason is None, not in functions or methods, and
+                            nowhere if block_reason is a string describing the offending context. Raise
+                            an exception otherwise.
+                            """
+                            if type(node) is ast.ClassDef:
+                                block_reason = "class"
+                            elif type(node) is ast.FunctionDef:
+                                block_reason = "def"
+                            elif type(node) is ast.Lambda:
+                                block_reason = "lambda"
+                            elif block_reason and type(node) is ast.Call and type(node.func) is ast.Name and node.func.id == "input":
+                                raise Exception(f"input call not supported in {block_reason} at line {node.lineno}")
+                            for child in ast.iter_child_nodes(node):
+                                check_node(child, block_reason)
+
+                        def check(src):
+                            """Check that input function is called only from where it's supported,
+                            i.e. at top-level, not in functions or methods. Raise an exception otherwise.
+                            """
+                            root = ast.parse(src)
+                            check_node(root)
+
+                        def replace_input_with_yield(src, function_name, global_var_names=[]):
+
+                            """Compile source code and replace input calls with yield.
+                            """
+                            class Replacer(ast.NodeTransformer):
+                                """NodeTransformer which replaces input(prompt) with
+                                yield((False,prompt,locals()))
+                                """
+                                def visit_Call(self, node):
+                                    self.generic_visit(node)
+                                    if type(node.func) is ast.Name and node.func.id == "input":
+                                        input_arg = node.args[0] if len(node.args) > 0 else ast.NameConstant(value=None)
+                                        y = ast.Yield(value=ast.Tuple(
+                                            elts=[
+                                                ast.NameConstant(value=False),
+                                                input_arg,
+                                                ast.Call(func=ast.Name(id="locals", ctx=ast.Load()), args=[], keywords=[])
+                                            ],
+                                            ctx=ast.Load()
+                                        ))
+                                        return y
+                                    return node
+
+                            # compile to ast
+                            root = ast.parse(src)
+
+                            # check that input is called only from top-level code, not functions
+                            check_node(root)
+
+                            # replace input(prompt) with yield (False,prompt,locals())
+                            replacer = Replacer()
+                            root1 = replacer.visit(root)
+
+                            # append yield (True,None,locals())
+                            y = ast.Expr(
+                                value=ast.Yield(value=ast.Tuple(
+                                    elts=[
+                                        ast.NameConstant(value=True),
+                                        ast.NameConstant(value=None),
+                                        ast.Call(func=ast.Name(id="locals", ctx=ast.Load()), args=[], keywords=[])
+                                    ],
+                                    ctx=ast.Load()
+                                ))
+                            )
+                            root1.body.append(y)
+
+                            # define a coroutine
+                            root1.body = [
+                                ast.FunctionDef(
+                                    name=function_name,
+                                    args=ast.arguments(
+                                        args=[ast.arg(arg=g, annotation=None) for g in global_var_names],
+                                        defaults=[],
+                                        kwarg=None,
+                                        kw_defaults=[],
+                                        kwonlyargs=[],
+                                        vararg=None
+                                    ),
+                                    body=root1.body,
+                                    decorator_list=[],
+                                    returns=None
+                                )
+                            ]
+
+                            # add dummy missing lineno and col_offset to make compiler happy
+                            for node in ast.walk(root1):
+                                if not hasattr(node, "lineno"):
+                                    node.lineno = 1
+                                if not hasattr(node, "col_offset"):
+                                    node.col_offset = 999
+
+                            # compile
+                            code = compile(root1, "<ast>", "exec")
+
+                            return code
+
+                        def run_code_with_input_as_coroutine(src, global_variables):
+                            code = replace_input_with_yield(src, "corout", global_variables)
+                            gl = {}
+                            exec(code, gl)
+                            co = gl["corout"](**global_variables)
+                            return co
+
+                        self.global_variables = global_variables
+                        self.co = run_code_with_input_as_coroutine(src, global_variables)
+                        self.done, self.prompt, new_global_variables = self.co.send(None)
+                        self.global_variables.update(new_global_variables)
+
+                    def submit_input(self, input):
+                        self.done, self.prompt, new_global_variables = self.co.send(input)
+                        self.global_variables.update(new_global_variables)
+            `);
+        }
+
         // define one of the global variables src (no input) or corout (input)
         let handleInput = false;
+        pyodide.globals.src = src;
         if (this.handleInput) {
             // convert src to a coroutine
-            let cosrc = src
-                .replace(/input\(\s*\)/g, "(yield (False, None, locals()))")
-                .replace(/input\(([^\)]*)\)/g, "(yield (False, $1, locals()))");
-                    // should be made more robust
-            handleInput = src !== cosrc;
-            if (handleInput) {
-                let globalVarNames = Object.keys(pyodide.globals.global_variables);
-                cosrc = [`src = None\ndef corout(${globalVarNames.join(",")}):`].concat(cosrc.split("\n")).join("\n\t") +
-                    "\n\tyield (True, None, locals())\n";
-                pyodide.runPython(cosrc);
-            }
-        }
-        if (!handleInput) {
-            pyodide.globals.src = src;
+            pyodide.runPython("evaluator = CodeWithInputEvaluator(src, global_variables)");
         }
 
         // run src until all requested modules have been loaded (or failed)
@@ -246,22 +358,15 @@ class Pyodide {
         this.requestedModuleNames = [];
         try {
             self.pyodideGlobal.setFigureURL = (url) => this.setFigureURL(url);
-            if (handleInput) {
+            if (this.handleInput) {
                 this.requestInput = false;
-                try {
-                    pyodide.runPython(`
-                        co = corout(**global_variables)
-                        done, next_prompt, new_global_variables = co.send(None)
-                        global_variables.update(new_global_variables)
-                    `);
-                    if (!pyodide.globals.done) {
-                        this.inputPrompt = pyodide.globals.next_prompt;
-                        this.requestInput = true;
-                    }
-                } catch (err) {
-                    if (!/StopIteration/.test(err.message)) {
-                        throw err;
-                    }
+                pyodide.runPython(`
+                    done = evaluator.done
+                    input_prompt = evaluator.prompt
+                `);
+                if (!pyodide.globals.done) {
+                    this.inputPrompt = pyodide.globals.input_prompt;
+                    this.requestInput = true;
                 }
             } else {
                 pyodide.runPython("execute_code(src)");
@@ -315,21 +420,16 @@ class Pyodide {
 
             this.requestInput = false;
             let errMsg = "";
-            try {
-                self.input_string = str;
-                pyodide.runPython(`
-                    import js
-                    done, next_prompt, new_global_variables = co.send(js.input_string)
-                    global_variables.update(new_global_variables)
-                `);
-                if (!pyodide.globals.done) {
-                    this.inputPrompt = pyodide.globals.next_prompt;
-                    this.requestInput = true;
-                }
-            } catch (err) {
-                if (!/StopIteration/.test(err.message)) {
-                    errMsg = err.message;
-                }
+            self.input_string = str;
+            pyodide.runPython(`
+                import js
+                evaluator.submit_input(js.input_string)
+                done = evaluator.done
+                input_prompt = evaluator.prompt
+            `);
+            if (!pyodide.globals.done) {
+                this.inputPrompt = pyodide.globals.next_prompt;
+                this.requestInput = true;
             }
 
             let stdout = pyodide.runPython("sys.stdout.getvalue()");
