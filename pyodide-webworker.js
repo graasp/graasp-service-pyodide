@@ -67,17 +67,16 @@ const options = {
     notifyDirtyFile: (path) => {
         postMessage({cmd: "dirty", data: path});
     },
+    postExec: function () {
+        updateOutput(true);
+        postMessage({cmd: "done"});
+        if (p.requestInput) {
+            postMessage({cmd: "input", prompt: p.inputPrompt});
+        }
+    },
     handleInput: true
 };
 const p = new Pyodide(options);
-
-function postExec() {
-    updateOutput(true);
-    postMessage({cmd: "done"});
-    if (p.requestInput) {
-        postMessage({cmd: "input", prompt: p.inputPrompt});
-    }
-}
 
 function updateOutput(forced) {
 	let currentTime = Date.now();
@@ -107,12 +106,10 @@ function sendCommand(cmd, data) {
 
 function run(src) {
     p.run(src);
-    postExec();
 }
 
 function submitInput(str) {
     p.submitInput(str);
-    postExec();
 }
 
 function cancelInput(str) {

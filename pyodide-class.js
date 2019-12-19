@@ -12,6 +12,7 @@ Author: Yves Piguet, EPFL, 2019
 
 Usage:
     const options = {
+        postExec: function () { /* executed when execution is finished ** },
         write: function (str) { /* write text output ** },
         clearText: function () { /* clear text output ** },
         setFigureURL: function (dataURL) { /* show graphical output ** },
@@ -97,6 +98,7 @@ class FileSystemSessionStorage extends FileSystem {
 
 class Pyodide {
     constructor(options) {
+        this.postExec = options && options.postExec || (() => {});
         this.write = options && options.write || ((str) => {});
         this.clearText = options && options.clearText || (() => {});
         this.setFigureURL = options && options.setFigureURL || ((url) => {});
@@ -342,15 +344,10 @@ class Pyodide {
                     def submit_input(self, input):
                         self.done, self.prompt, new_global_variables = self.co.send(input)
                         self.global_variables.update(new_global_variables)
-            `);
-        }
 
-        // define one of the global variables src (no input) or corout (input)
-        let handleInput = false;
-        pyodide.globals.src = src;
-        if (this.handleInput) {
-            // convert src to a coroutine
-            pyodide.runPython("evaluator = CodeWithInputEvaluator(src, global_variables)");
+                    def cancel_input(self):
+                        self.co.close()
+            `);
         }
 
         // run src until all requested modules have been loaded (or failed)
@@ -358,7 +355,10 @@ class Pyodide {
         this.requestedModuleNames = [];
         try {
             self.pyodideGlobal.setFigureURL = (url) => this.setFigureURL(url);
+            pyodide.globals.src = src;
             if (this.handleInput) {
+                // convert src to a coroutine
+                pyodide.runPython("evaluator = CodeWithInputEvaluator(src, global_variables)");
                 this.requestInput = false;
                 pyodide.runPython(`
                     done = evaluator.done
@@ -394,6 +394,7 @@ class Pyodide {
                     })
                     .catch(() => {
                         this.failedModuleNames.push(nextModuleName);
+                        this.postExec && this.postExec();
                     });
                 // skip output and ui changes performed upon end
                 // since we're not finished yet
@@ -405,6 +406,8 @@ class Pyodide {
 
         let stdout = pyodide.runPython("sys.stdout.getvalue()");
         this.write(stdout + errMsg);
+
+        this.postExec && this.postExec();
 
         return true;
     }
@@ -434,6 +437,7 @@ class Pyodide {
 
             let stdout = pyodide.runPython("sys.stdout.getvalue()");
             this.write(stdout + errMsg);
+            this.postExec && this.postExec();
         }
     }
 
@@ -442,7 +446,7 @@ class Pyodide {
             this.requestInput = false;
             try {
                 pyodide.runPython(`
-                    co.close()
+                    evaluator.cancel_input()
                 `);
             } catch (err) {}
         }
