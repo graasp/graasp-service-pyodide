@@ -286,6 +286,23 @@ class Pyodide {
                             replacer = Replacer()
                             root1 = replacer.visit(root)
 
+                            # replace last statement with "import sys; sys.displayhook(expr)" if it's an expr
+                            last_el = root1.body[-1]
+                            if type(last_el) is ast.Expr:
+                                expr = root1.body.pop()
+                                root1.body.append(ast.Import(
+                                    names=[
+                                        ast.alias(name="sys", asname=None)
+                                    ]
+                                ))
+                                root1.body.append(ast.Expr(
+                                    value=ast.Call(
+                                        func=ast.Attribute(attr="displayhook", value=ast.Name(id="sys", ctx=ast.Load()), ctx=ast.Load()),
+                                        args=[expr.value],
+                                        keywords=[]
+                                    )
+                                ))
+
                             # append yield (True,None,locals())
                             y = ast.Expr(
                                 value=ast.Yield(value=ast.Tuple(
