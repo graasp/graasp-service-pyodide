@@ -124,6 +124,7 @@ class PyWorker {
 			this.timeoutId = setTimeout(() => {
 				if (this.isRunning) {
 					this.stop();
+                    this.onStatusChanged && this.onStatusChanged("");
 					this.onTimeout && this.onTimeout();
 				}
 				this.timeoutId = -1;
