@@ -8,7 +8,7 @@ Test of pyodide, with
     - file support
     - matplotlib support
 
-Author: Yves Piguet, EPFL, 2019
+Author: Yves Piguet, EPFL, 2019-2020
 
 Usage:
     const options = {
@@ -23,9 +23,9 @@ Usage:
     p.load();   // optional arg: function called once everything is loaded
     p.run(src);
     ...
-    let dirtyFilePaths = p.getDirtyFilePaths();
+    let dirtyFilePaths = p.getDirtyFilePaths(reset);
     // fetch dirtyFilePaths in sessionStorage and save them, upon page unload
-    // or periodically
+    // or periodically, typically with reset=true to mark saved files as clean
 
 With option handleInput=true, some support for input function is provided.
 It's limited to calls outside any function definition. The whole code is
@@ -41,9 +41,6 @@ To enable it:
 get input from the user with prompt p.inputPrompt (null if None was passed to
 Python's function "input"), execute p.submitInput(input), and continue checking
 p.requestInput and getting more input from the user until p.requestInput is false.
-
-Other limitations: with any replacement, since code is moved inside a function,
-implicit display of expression results isn't available anymore.
 
 /** Simple virtual file system
 */
@@ -108,10 +105,16 @@ class Pyodide {
         this.requestInput = false;
         this.inputPrompt = null;
 
+        // requested modules waiting to be fetched
         this.requestedModuleNames = [];
+        // requested modules which have been fetched successfully
         this.loadedModuleNames = [];
+        // requested modules which couldn't be fetched successfully
         this.failedModuleNames = [];
+
+        // virtual file system
         this.fs = FileSystem.create();
+        // files which have been created or modified
         this.dirtyFiles = [];
     }
 
@@ -201,8 +204,12 @@ class Pyodide {
         }
     }
 
-    getDirtyFilePaths() {
-        return this.dirtyFiles;
+    getDirtyFilePaths(reset) {
+        let dirtyFiles = this.dirtyFiles;
+        if (reset) {
+            this.dirtyFiles = [];
+        }
+        return dirtyFiles;
     }
 
     run(src) {
