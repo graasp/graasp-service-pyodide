@@ -100,6 +100,7 @@ class Pyodide {
         this.clearText = options && options.clearText || (() => {});
         this.setFigureURL = options && options.setFigureURL || ((url) => {});
         this.notifyDirtyFile = options && options.notifyDirtyFile || ((path) => {});
+        this.notifyStatus = options && options.notifyStatus || ((status) => {})
 
         this.handleInput = options && options.handleInput || false;
         this.requestInput = false;
@@ -119,8 +120,11 @@ class Pyodide {
     }
 
     load(then) {
+        this.notifyStatus("loading Pyodide");
         self.languagePluginUrl = "pyodide-build-0.14.1/";
         languagePluginLoader.then(() => {
+
+            this.notifyStatus("setup");
 
             self.pyodideGlobal = {
                 requestModule: (name) => this.requestModule(name),
@@ -378,6 +382,7 @@ class Pyodide {
         let errMsg = "";
         this.requestedModuleNames = [];
         try {
+            this.notifyStatus("running");
             self.pyodideGlobal.setFigureURL = (url) => this.setFigureURL(url);
             pyodide.globals.src = src;
             if (this.handleInput) {
@@ -411,9 +416,11 @@ class Pyodide {
             if (/ModuleNotFoundError/.test(err.message) &&
                 this.requestedModuleNames.length > 0) {
                 const nextModuleName = this.requestedModuleNames.shift();
+                this.notifyStatus("loading module " + nextModuleName);
                 pyodide.loadPackage(nextModuleName)
                     .then(() => {
                         this.loadedModuleNames.push(nextModuleName);
+                        this.notifyStatus("running");
                         this.run(src);
                     })
                     .catch(() => {

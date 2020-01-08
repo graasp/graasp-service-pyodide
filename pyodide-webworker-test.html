@@ -7,7 +7,7 @@ Test of pyodide, with
 	- dynamic loading of modules referenced by import statements
 	- runs asynchronously in a webworker, with timeout and interruption
 
-Author: Yves Piguet, EPFL, 2019
+Author: Yves Piguet, EPFL, 2019-2020
 
 -->
 
@@ -26,6 +26,7 @@ window.addEventListener("load", () => {
 	let btnClear = document.getElementById("btn-clear");
     let btnDirty = document.getElementById("btn-dirty");
     let elBusy = document.getElementById("busy");
+    let elStatus = document.getElementById("status");
 	let btnSubmit = document.getElementById("btn-submit");
 	let btnCancel = document.getElementById("btn-cancel");
 
@@ -79,6 +80,9 @@ window.addEventListener("load", () => {
 		return true;
 	}, false);
 
+    pyWorker.onStatusChanged = (status) => {
+        elStatus.textContent = status || "ready";
+    };
 	pyWorker.onTerminated = () => {
 		btnStop.disabled = true;
 		btnRun.disabled = false;
@@ -130,22 +134,27 @@ window.addEventListener("load", () => {
 
         <style>
             .busy {
-              display: inline-block;
-              width: 0.5em;
-              height: 0.5em;
-              border-radius: 50%;
-              border: 1px solid transparent;
-              border-top: 2px solid #f00;
-              border-bottom: 2px solid #f00;
-              animation: busy-rot 2s linear infinite;
+                display: inline-block;
+                width: 0.5em;
+                height: 0.5em;
+                border-radius: 50%;
+                border: 1px solid transparent;
+                border-top: 2px solid #f00;
+                border-bottom: 2px solid #f00;
+                animation: busy-rot 2s linear infinite;
             }
             @keyframes busy-rot {
-              0% {
-                transform: rotate(0deg);
-              }
-              100% {
-                transform: rotate(360deg);
-              }
+                0% {
+                    transform: rotate(0deg);
+                }
+                100% {
+                    transform: rotate(360deg);
+                }
+            }
+
+            .status {
+                color: silver;
+                font: 70% sans-serif;
             }
         </style>
     </head>
@@ -245,7 +254,8 @@ print(df2.dtypes)
 <button id="btn-stop" type="button" disabled>Stop</button>
 <button id="btn-clear" type="button">Clear</button>
 <button id="btn-dirty" type="button">Dirty</button>
-<span id="busy" class="busy" style="display: none"></span>
+&nbsp;&nbsp;<span id="busy" class="busy" style="display: none"></span>
+&nbsp;&nbsp;<span id="status" class="status"></span>
 </p>
 
 <p id="input" style="display: none">

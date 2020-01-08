@@ -24,7 +24,7 @@ Messages sent from webworker to main thread: json, {cmd:string,...}, with:
 - cmd="input": prompt=string or null, expect a message back with cmd="submit"
 - cmd="print": data=string to be appeded to the output
 
-Author: Yves Piguet, EPFL, 2019
+Author: Yves Piguet, EPFL, 2019-2020
 
 */
 
@@ -63,6 +63,9 @@ const options = {
     },
     setFigureURL: (dataURL) => {
         postMessage({cmd: "figure", data: dataURL});
+    },
+    notifyStatus: (status) => {
+        postMessage({cmd: "status", status: status});
     },
     notifyDirtyFile: (path) => {
         postMessage({cmd: "dirty", data: path});
@@ -105,6 +108,7 @@ function sendCommand(cmd, data) {
 }
 
 function run(src) {
+    postMessage({cmd: "status", status: "running"});
     p.run(src);
 }
 
@@ -120,6 +124,7 @@ onmessage = (ev) => {
     let msg = JSON.parse(ev.data);
     switch (msg.cmd) {
     case "preload":
+        postMessage({cmd: "status", status: "startup"});
         p.load(() => {
             loaded = true;
             postMessage({cmd: "done"});
@@ -129,6 +134,7 @@ onmessage = (ev) => {
     	if (loaded) {
     		run(msg.code);
     	} else {
+            postMessage({cmd: "status", status: "startup"});
             p.load(() => {
                 run(msg.code);
                 loaded = true;
