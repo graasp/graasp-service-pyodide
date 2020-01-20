@@ -3,8 +3,8 @@
 function getWorkerDataUrl() {
   return encodeURIComponent(`
     importScripts(
-      'https://graasp-pyodide.s3.amazonaws.com/Pyodide.js',
-      'https://graasp-pyodide.s3.amazonaws.com/v0.14.1/pyodide.js'
+      'https://graasp-pyodide.s3.amazonaws.com/v0.1.0/Pyodide.js',
+      'https://graasp-pyodide.s3.amazonaws.com/lib/v0.14.1/pyodide.js'
     );
 
     var loaded = false;
@@ -25,20 +25,22 @@ function getWorkerDataUrl() {
       setFigureURL: (dataURL) => {
         postMessage({ cmd: 'figure', data: dataURL });
       },
+      notifyStatus: (status) => {
+        postMessage({ cmd: 'status', status: status });
+      },
       notifyDirtyFile: (path) => {
         postMessage({ cmd: 'dirty', data: path });
+      },
+      postExec: function () {
+        updateOutput(true);
+        postMessage({ cmd: 'done' });
+        if (p.requestInput) {
+          postMessage({ cmd: 'input', prompt: p.inputPrompt });
+        }
       },
       handleInput: true,
     };
     const p = new Pyodide(options);
-    
-    function postExec() {
-      updateOutput(true);
-      postMessage({ cmd: 'done' });
-      if (p.requestInput) {
-        postMessage({ cmd: 'input', prompt: p.inputPrompt });
-      }
-    }
     
     function updateOutput(forced) {
       let currentTime = Date.now();
@@ -67,13 +69,12 @@ function getWorkerDataUrl() {
     }
     
     function run(src) {
+      postMessage({ cmd: 'status', status: 'running' });
       p.run(src);
-      postExec();
     }
     
     function submitInput(str) {
       p.submitInput(str);
-      postExec();
     }
     
     function cancelInput(str) {
@@ -84,6 +85,7 @@ function getWorkerDataUrl() {
       let msg = JSON.parse(ev.data);
       switch (msg.cmd) {
         case 'preload':
+          postMessage({ cmd: 'status', status: 'startup' });
           p.load(() => {
             loaded = true;
             postMessage({ cmd: 'done' });
@@ -93,6 +95,7 @@ function getWorkerDataUrl() {
           if (loaded) {
             run(msg.code);
           } else {
+            postMessage({ cmd: 'status', status: 'startup' });
             p.load(() => {
               run(msg.code);
               loaded = true;

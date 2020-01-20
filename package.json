@@ -1,0 +1,26 @@
+{
+  "name": "@graasp/pyodide",
+  "version": "0.1.0",
+  "description": "Pyodide functionality for the Graasp ecosystem.",
+  "main": "index.js",
+  "directories": {
+    "example": "examples"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/graasp/graasp-service-pyodide.git"
+  },
+  "author": "React EPFL",
+  "contributors": [
+    "Yves Piguet",
+    "Juan Carlos Farah"
+  ],
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/graasp/graasp-service-pyodide/issues"
+  },
+  "homepage": "https://github.com/graasp/graasp-service-pyodide#readme"
+}
