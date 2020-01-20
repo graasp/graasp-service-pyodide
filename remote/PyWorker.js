@@ -21,7 +21,7 @@ pyWorker.onDirtyFile = (path) => { ... };
 pyWorker.onFile = (path, data) => { ... };
 pyWorker.addCommand("name", (data) => { ... });
 
-pyWorker.run(null);	// preload (optional)
+pyWorker.preload();	// optional
 
 pyWorker.run("...");
 pyWorker.stop();
@@ -33,12 +33,21 @@ class PyWorker {
 		this.workerURL = workerURL || "pyodide-webworker.js";
 		this.worker = null;
 		this.isRunning = false;
-		this.timeout = 20;	// seconds
+		this.timeout = 180;	// seconds (should be enough for numpy + scipy + matplotlib)
 		this.timeoutId = -1;
 		this.outputBuffer = "";
+
+		// callbacks
 		this.onOutput = null;
+    this.onFigure = null;
 		this.onTimeout = null;
+    this.onDirtyFile = null;
+    this.onFile = null;
 		this.onTerminated = null;
+
+		// commands added by addCommand(name, (data) => { ... })
+    // (can be called from webworker with sendCommand;
+    // from Python, with import js; js.sendCommand(name, data) )
 		this.commands = {};
 	}
 
@@ -116,9 +125,11 @@ class PyWorker {
 		if (this.worker == null || this.isRunning) {
 			this.create();
 		}
-        const msg = {
+        const msg = src != null ? {
             cmd: "run",
             code: src
+        } : {
+            cmd: "preload"
         };
 		this.worker.postMessage(JSON.stringify(msg));
 		this.isRunning = true;
@@ -134,6 +145,15 @@ class PyWorker {
     		this.worker.postMessage(JSON.stringify(msg));
     		this.isRunning = true;
             this.handleTimeout();
+        }
+    }
+
+    cancelInput() {
+        if (this.worker && !this.isRunning) {
+            const msg = {
+                cmd: "cancel"
+            };
+    		this.worker.postMessage(JSON.stringify(msg));
         }
     }
 
