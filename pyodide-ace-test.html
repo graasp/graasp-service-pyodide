@@ -27,8 +27,9 @@ window.addEventListener("load", () => {
     outputEditor = ace.edit("output-editor", {
         mode: "ace/mode/text",
         theme: "ace/theme/chrome",
-        readOnly: false
+        readOnly: true
     });
+    // inline input
     outputEditor.commands.on("exec", function(e) {
         if (!e.command.readOnly) {
             let range = outputEditor.selection.getRange();

@@ -99,6 +99,8 @@ class PyWorker {
                 break;
             case "input":
 				this.isRunning = false;
+                this.webworkerStatus = "input";
+                this.onStatusChanged && this.onStatusChanged("input");
                 this.onInput && this.onInput(ev.data.prompt);
                 break;
             case "status":
@@ -183,6 +185,8 @@ class PyWorker {
                 cmd: "cancel"
             };
     		this.worker.postMessage(JSON.stringify(msg));
+            this.webworkerStatus = "";
+            this.onStatusChanged && this.onStatusChanged("");
         }
     }
 
