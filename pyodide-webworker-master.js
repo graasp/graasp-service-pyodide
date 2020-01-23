@@ -15,7 +15,8 @@ Usage:
 let pyWorker = new PyWorker();
 pyWorker.onStatusChanged = (statusString) => { ... };
 pyWorker.onTerminated = () => { ... };
-pyWorker.onOutput = (text) => { ... };
+pyWorker.sharedOutput = b; // default is false (see below)
+pyWorker.onOutput = (text, append) => { ... };
 pyWorker.onInput = (prompt) => { ... };
 pyWorker.onFigure = (imageDataURL) => { ... }
 pyWorker.onTimeout = () => { ... };
@@ -27,6 +28,12 @@ pyWorker.preload();	// optional
 
 pyWorker.run("...");
 pyWorker.stop();
+
+Note on sharedOutput: if output is modified directly by the application,
+e.g. for user input or to display other information, inline graphics etc.,
+sharedOutput should be set to true and onOutput will be called with append=true;
+otherwise, sharedOutput can be left to its default value of false, and onOutput
+will always be called with append=false.
 
 */
 
@@ -40,6 +47,7 @@ class PyWorker {
 		this.outputBuffer = "";
 
         // callbacks
+        this.sharedOutput = false;  // onOutput always called with append=false
 		this.onOutput = null;
         this.onInput = null;
         this.onFigure = null;
@@ -114,6 +122,16 @@ class PyWorker {
 		this.worker.addEventListener("error", (ev) => {
 			console.info(ev);
 		});
+
+        if (this.sharedOutput) {
+            const msg = {
+                cmd: "config",
+                options: {
+                    inlineInput: true
+                }
+            };
+            this.worker.postMessage(JSON.stringify(msg));
+        }
 	}
 
     handleTimeout() {
@@ -190,8 +208,10 @@ class PyWorker {
 	}
 
 	clearOutput() {
-		this.outputBuffer = "";
-		this.onOutput && this.onOutput(this.outputBuffer);
+        if (!this.sharedOutput) {
+            this.outputBuffer = "";
+        }
+   		this.onOutput && this.onOutput("", false);
 	}
 
     clearFigure() {
@@ -202,7 +222,11 @@ class PyWorker {
     }
 
 	printToOutput(str) {
-		this.outputBuffer += str;
-		this.onOutput && this.onOutput(this.outputBuffer);
+        if (this.sharedOutput) {
+            this.onOutput && this.onOutput(str, true);
+        } else {
+    		this.outputBuffer += str;
+    		this.onOutput && this.onOutput(this.outputBuffer, false);
+        }
 	}
 }

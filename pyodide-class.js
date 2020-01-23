@@ -41,6 +41,12 @@ To enable it:
 get input from the user with prompt p.inputPrompt (null if None was passed to
 Python's function "input"), execute p.submitInput(input), and continue checking
 p.requestInput and getting more input from the user until p.requestInput is false.
+By default, input prompt is assumed to be displayed at a different place than in
+standard output; both the prompt and the value entered by the user are echoed
+to stdout once they have been submitted. By setting options.inlineInput=true,
+the prompt is written to stdout before p.run returns with p.requestInput===true,
+the value entered by the user is assumed to be echoed immediately to stdout
+(e.g. in an emulated terminal), and to remain there; it isn't echoed by Pyodide.
 
 /** Simple virtual file system
 */
@@ -103,6 +109,7 @@ class Pyodide {
         this.notifyStatus = options && options.notifyStatus || ((status) => {})
 
         this.handleInput = options && options.handleInput || false;
+        this.inlineInput = options && options.inlineInput || false;
         this.requestInput = false;
         this.inputPrompt = null;
 
@@ -217,7 +224,7 @@ class Pyodide {
     }
 
     run(src) {
-        // (re)set stdin and stderr
+        // (re)set stdout and stderr
         pyodide.runPython(`
             import io, sys
             sys.stdout = io.StringIO()
@@ -438,6 +445,11 @@ class Pyodide {
         let stdout = pyodide.runPython("sys.stdout.getvalue()");
         this.write(stdout + errMsg);
 
+        if (!pyodide.globals.done && this.inlineInput) {
+            // write prompt to stdout
+            this.write(this.inputPrompt == undefined ? "? " : this.inputPrompt);
+        }
+
         this.postExec && this.postExec();
 
         return true;
@@ -445,12 +457,17 @@ class Pyodide {
 
     submitInput(str) {
         if (this.requestInput) {
-            // (re)set stdin and stderr
+            // (re)set stdout and stderr
             pyodide.runPython(`
                 import io, sys
                 sys.stdout = io.StringIO()
                 sys.stderr = sys.stdout
             `);
+
+            if (!this.inlineInput) {
+                // write prompt and input to stdout
+                this.write((this.inputPrompt == undefined ? "? " : this.inputPrompt) + str + "\n");
+            }
 
             this.requestInput = false;
             let errMsg = "";
@@ -468,6 +485,10 @@ class Pyodide {
 
             let stdout = pyodide.runPython("sys.stdout.getvalue()");
             this.write(stdout + errMsg);
+            if (!pyodide.globals.done && this.inlineInput) {
+                // write prompt to stdout
+                this.write(this.inputPrompt == undefined ? "? " : this.inputPrompt);
+            }
             this.postExec && this.postExec();
         }
     }
