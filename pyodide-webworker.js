@@ -175,6 +175,7 @@ onmessage = (ev) => {
                 case "step":
                 case "return":
                 case "continue":
+                case "quit":
                     p.continueDebugging(msg.dbg);
                     break;
                 }

@@ -95,6 +95,7 @@ window.addEventListener("load", () => {
     const btnDbgStep = document.getElementById("btn-dbg-step");
     const btnDbgRet = document.getElementById("btn-dbg-ret");
     const btnDbgCont = document.getElementById("btn-dbg-cont");
+    const btnDbgQuit = document.getElementById("btn-dbg-quit");
 
 	let pyWorker = new PyWorker("pyodide-webworker.js");
     let dirtyFiles = [];
@@ -137,6 +138,12 @@ window.addEventListener("load", () => {
     }, false);
     btnDbgCont.addEventListener("click", () => {
         pyWorker.dbgResume("continue");
+		btnRun.disabled = true;
+		btnStop.disabled = false;
+        elBusy.style.display = "inline-block";
+    }, false);
+    btnDbgQuit.addEventListener("click", () => {
+        pyWorker.dbgResume("quit");
 		btnRun.disabled = true;
 		btnStop.disabled = false;
         elBusy.style.display = "inline-block";
@@ -402,6 +409,7 @@ f()
                 <button id="btn-dbg-step" type="button">Step</button>
                 <button id="btn-dbg-ret" type="button">Ret</button>
                 <button id="btn-dbg-cont" type="button">Cont</button>
+                <button id="btn-dbg-quit" type="button">Quit</button>
             </span>
         </p>
 
