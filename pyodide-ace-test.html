@@ -390,12 +390,12 @@ f()
 
         <p>
             Sample code:
-            <a onclick="srcEditor.setValue(document.getElementById('ex-def').textContent.trim(), 1);" href="#">def</a>
-            <a onclick="srcEditor.setValue(document.getElementById('ex-input').textContent.trim(), 1);" href="#">input</a>
-            <a onclick="srcEditor.setValue(document.getElementById('ex-files').textContent.trim(), 1);" href="#">files</a>
-            <a onclick="srcEditor.setValue(document.getElementById('ex-numpy').textContent.trim(), 1);" href="#">numpy</a>
-            <a onclick="srcEditor.setValue(document.getElementById('ex-matplotlib').textContent.trim(), 1);" href="#">matplotlib</a>
-            <a onclick="srcEditor.setValue(document.getElementById('ex-pandas').textContent.trim(), 1);" href="#">pandas</a>
+            <a onclick="srcEditor.setValue(document.getElementById('ex-def').textContent.trim(), 1); srcEditor.session.clearBreakpoints();" href="#">def</a>
+            <a onclick="srcEditor.setValue(document.getElementById('ex-input').textContent.trim(), 1); srcEditor.session.clearBreakpoints();" href="#">input</a>
+            <a onclick="srcEditor.setValue(document.getElementById('ex-files').textContent.trim(), 1); srcEditor.session.clearBreakpoints();" href="#">files</a>
+            <a onclick="srcEditor.setValue(document.getElementById('ex-numpy').textContent.trim(), 1); srcEditor.session.clearBreakpoints();" href="#">numpy</a>
+            <a onclick="srcEditor.setValue(document.getElementById('ex-matplotlib').textContent.trim(), 1); srcEditor.session.clearBreakpoints();" href="#">matplotlib</a>
+            <a onclick="srcEditor.setValue(document.getElementById('ex-pandas').textContent.trim(), 1); srcEditor.session.clearBreakpoints();" href="#">pandas</a>
         </p>
 
         <p>
