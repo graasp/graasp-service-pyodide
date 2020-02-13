@@ -224,6 +224,11 @@ class Pyodide {
     }
 
     run(src) {
+        // nothing to do if empty
+        if (src.trim() === "") {
+            return true;
+        }
+
         // (re)set stdout and stderr
         pyodide.runPython(`
             import io, sys
