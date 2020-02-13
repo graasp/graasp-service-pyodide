@@ -109,6 +109,8 @@ class PyWorker {
                 break;
 			case "done":
 				this.isRunning = false;
+				this.isSuspended = ev.data.suspendedAt != null;
+				this.dbgCurrentLine = ev.data.suspendedAt;
                 this.webworkerStatus = "";
                 this.onStatusChanged && this.onStatusChanged("");
 				this.onTerminated && this.onTerminated();
@@ -125,15 +127,14 @@ class PyWorker {
 			console.info(ev);
 		});
 
-        if (this.sharedOutput) {
-            const msg = {
-                cmd: "config",
-                options: {
-                    inlineInput: true
-                }
-            };
-            this.worker.postMessage(JSON.stringify(msg));
-        }
+		const msg = {
+			cmd: "config",
+			options: {
+				handleInput: true,
+				inlineInput: this.sharedOutput
+			}
+		};
+		this.worker.postMessage(JSON.stringify(msg));
 	}
 
     handleTimeout() {
@@ -152,13 +153,14 @@ class PyWorker {
 		}
     }
 
-	run(src) {
+	run(src, breakpoints) {
 		if (this.worker == null || this.isRunning) {
 			this.create();
 		}
         const msg = src != null ? {
             cmd: "run",
-            code: src
+			code: src,
+			breakpoints: breakpoints || []
         } : {
             cmd: "preload"
         };
@@ -189,6 +191,18 @@ class PyWorker {
             this.onStatusChanged && this.onStatusChanged("");
         }
     }
+
+	dbgResume(dbgCmd) {
+		if (this.worker && this.isSuspended) {
+			const msg = {
+				cmd: "debug",
+				dbg: dbgCmd
+			};
+    		this.worker.postMessage(JSON.stringify(msg));
+    		this.isRunning = true;
+            this.handleTimeout();
+		}
+	}
 
     getFile(path) {
         const msg = {

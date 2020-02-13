@@ -23,6 +23,21 @@ window.addEventListener("load", () => {
     srcEditor = ace.edit("src-editor");
     srcEditor.setTheme("ace/theme/chrome");
     srcEditor.session.setMode("ace/mode/python");
+    // breakpoints
+    srcEditor.on("guttermousedown", (e) => {
+        let target = e.domEvent.target;
+        if (target.className.indexOf("ace_gutter-cell") != -1 &&
+            e.clientX <= 25 + target.getBoundingClientRect().left) {
+            const row = e.getDocumentPosition().row;
+            const breakpoints = e.editor.session.getBreakpoints(row, 0);
+            if (breakpoints[row] === undefined) {
+                e.editor.session.setBreakpoint(row);
+            } else {
+                e.editor.session.clearBreakpoint(row);
+            }
+            e.stop();
+        }
+    })
 
     outputEditor = ace.edit("output-editor", {
         mode: "ace/mode/text",
@@ -52,6 +67,7 @@ window.addEventListener("load", () => {
     		btnStop.disabled = false;
             elBusy.style.display = "inline-block";
             outputEditor.setReadOnly(true);
+            document.getElementById("output-editor").parentElement.className = "dont-expect-input";
             inputStart = null;
             pyWorker.submitInput(str);
         }
@@ -63,24 +79,35 @@ window.addEventListener("load", () => {
         exec: function () {
             pyWorker.cancelInput();
             outputEditor.setReadOnly(true);
+            document.getElementById("output-editor").parentElement.className = "dont-expect-input";
             inputStart = null;
         }
     });
 
-	let btnRun = document.getElementById("btn-run");
-	let btnStop = document.getElementById("btn-stop");
-	let btnClear = document.getElementById("btn-clear");
-    let btnDirty = document.getElementById("btn-dirty");
-    let elBusy = document.getElementById("busy");
-    let elStatus = document.getElementById("status");
+	const btnRun = document.getElementById("btn-run");
+	const btnStop = document.getElementById("btn-stop");
+	const btnClear = document.getElementById("btn-clear");
+    const btnDirty = document.getElementById("btn-dirty");
+    const elBusy = document.getElementById("busy");
+    const elStatus = document.getElementById("status");
+    const spanDebugger = document.getElementById("debugger");
+    const btnDbgNext = document.getElementById("btn-dbg-next");
+    const btnDbgStep = document.getElementById("btn-dbg-step");
+    const btnDbgRet = document.getElementById("btn-dbg-ret");
+    const btnDbgCont = document.getElementById("btn-dbg-cont");
 
 	let pyWorker = new PyWorker("pyodide-webworker.js");
     let dirtyFiles = [];
+    let dbgCurrentLine = null;
 	pyWorker.timeout = 60
 	pyWorker.addCommand("alert", (msg) => { alert(msg); });
 	btnRun.addEventListener("click", () => {
-		let src = srcEditor.getValue();
-		pyWorker.run(src);
+		const src = srcEditor.getValue();
+        const breakpoints = srcEditor.session.getBreakpoints();
+        const bpLines = breakpoints
+            .map((cls, i) => cls ? i + 1 : null)
+            .filter((line) => line !== null);
+        pyWorker.run(src, bpLines);
 		btnRun.disabled = true;
 		btnStop.disabled = false;
         elBusy.style.display = "inline-block";
@@ -89,7 +116,31 @@ window.addEventListener("load", () => {
 		pyWorker.stop();
 		pyWorker.preload();
 		btnRun.disabled = false;
-	}, false);
+    }, false);
+    btnDbgNext.addEventListener("click", () => {
+        pyWorker.dbgResume("next");
+		btnRun.disabled = true;
+		btnStop.disabled = false;
+        elBusy.style.display = "inline-block";
+    }, false);
+    btnDbgStep.addEventListener("click", () => {
+        pyWorker.dbgResume("step");
+		btnRun.disabled = true;
+		btnStop.disabled = false;
+        elBusy.style.display = "inline-block";
+    }, false);
+    btnDbgRet.addEventListener("click", () => {
+        pyWorker.dbgResume("return");
+		btnRun.disabled = true;
+		btnStop.disabled = false;
+        elBusy.style.display = "inline-block";
+    }, false);
+    btnDbgCont.addEventListener("click", () => {
+        pyWorker.dbgResume("continue");
+		btnRun.disabled = true;
+		btnStop.disabled = false;
+        elBusy.style.display = "inline-block";
+    }, false);
 	btnClear.addEventListener("click", () => {
 		pyWorker.clearOutput();
         pyWorker.clearFigure();
@@ -102,7 +153,17 @@ window.addEventListener("load", () => {
     }, false);
 
     pyWorker.onStatusChanged = (status) => {
-        elStatus.textContent = status || "ready";
+        elStatus.textContent = status || (pyWorker.isSuspended ? "debug" : "ready");
+        spanDebugger.style.display = pyWorker.isSuspended ? "inline" : "none";
+        if (dbgCurrentLine != null) {
+            srcEditor.session.removeGutterDecoration(dbgCurrentLine - 1, "dbg-current-line");
+            dbgCurrentLine = null;
+        }
+        if (pyWorker.isSuspended) {
+            console.info(`suspended at ${pyWorker.dbgCurrentLine}`);
+            dbgCurrentLine = pyWorker.dbgCurrentLine;
+            srcEditor.session.addGutterDecoration(dbgCurrentLine - 1, "dbg-current-line");
+        }
     };
 	pyWorker.onTerminated = () => {
 		btnStop.disabled = true;
@@ -134,6 +195,7 @@ window.addEventListener("load", () => {
     pyWorker.onInput = (prompt) => {
         outputEditor.gotoLine(1e9);
         outputEditor.setReadOnly(false);
+        document.getElementById("output-editor").parentElement.className = "expect-input";
         inputStart = outputEditor.getSelectionRange().start;
         outputEditor.focus();
     };
@@ -147,6 +209,18 @@ window.addEventListener("load", () => {
             #src-editor, #output-editor {
                 width: 95%;
                 height: 30em;
+            }
+
+            .expect-input .ace_gutter-cell:last-child {
+                background-color: #0f6;
+            }
+
+            .ace_gutter-cell.ace_breakpoint {
+                border-radius: 10px;
+                box-shadow: 0px 0px 2px 2px #08f inset;
+            }
+            .dbg-current-line {
+                background-color: #f88;
             }
         </style>
 
@@ -308,29 +382,40 @@ f()
 </div>
 
         <p>
-        Sample code:
-        <a onclick="srcEditor.setValue(document.getElementById('ex-def').textContent.trim(), 1);" href="#">def</a>
-        <a onclick="srcEditor.setValue(document.getElementById('ex-input').textContent.trim(), 1);" href="#">input</a>
-        <a onclick="srcEditor.setValue(document.getElementById('ex-files').textContent.trim(), 1);" href="#">files</a>
-        <a onclick="srcEditor.setValue(document.getElementById('ex-numpy').textContent.trim(), 1);" href="#">numpy</a>
-        <a onclick="srcEditor.setValue(document.getElementById('ex-matplotlib').textContent.trim(), 1);" href="#">matplotlib</a>
-        <a onclick="srcEditor.setValue(document.getElementById('ex-pandas').textContent.trim(), 1);" href="#">pandas</a>
+            Sample code:
+            <a onclick="srcEditor.setValue(document.getElementById('ex-def').textContent.trim(), 1);" href="#">def</a>
+            <a onclick="srcEditor.setValue(document.getElementById('ex-input').textContent.trim(), 1);" href="#">input</a>
+            <a onclick="srcEditor.setValue(document.getElementById('ex-files').textContent.trim(), 1);" href="#">files</a>
+            <a onclick="srcEditor.setValue(document.getElementById('ex-numpy').textContent.trim(), 1);" href="#">numpy</a>
+            <a onclick="srcEditor.setValue(document.getElementById('ex-matplotlib').textContent.trim(), 1);" href="#">matplotlib</a>
+            <a onclick="srcEditor.setValue(document.getElementById('ex-pandas').textContent.trim(), 1);" href="#">pandas</a>
         </p>
 
         <p>
-        <button id="btn-run" type="button">Run</button>
-        <button id="btn-stop" type="button" disabled>Stop</button>
-        <button id="btn-clear" type="button">Clear</button>
-        <button id="btn-dirty" type="button">Dirty</button>
-        &nbsp;&nbsp;<span id="busy" class="busy" style="display: none"></span>
-        &nbsp;&nbsp;<span id="status" class="status"></span>
+            <button id="btn-run" type="button">Run</button>
+            <button id="btn-stop" type="button" disabled>Stop</button>
+            &nbsp;&nbsp;<span id="busy" class="busy" style="display: none"></span>
+            &nbsp;&nbsp;<span id="status" class="status">loading...</span>
+            <span id="debugger">
+                &nbsp;&nbsp;
+                <button id="btn-dbg-next" type="button">Next</button>
+                <button id="btn-dbg-step" type="button">Step</button>
+                <button id="btn-dbg-ret" type="button">Ret</button>
+                <button id="btn-dbg-cont" type="button">Cont</button>
+            </span>
         </p>
 
 	</div>
 
 	<div class="border column2">
-		<h2>Console</h2>
-        <div id="output-editor"></div>
+        <h2>Console</h2>
+        <div class="dont-expect-input"><div id="output-editor"></div></div><div>
+
+        <p>
+            <button id="btn-clear" type="button">Clear</button>
+            <button id="btn-dirty" type="button">Dirty</button>
+        </p>
+
 	</div>
 
 </div>

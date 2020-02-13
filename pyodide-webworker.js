@@ -83,9 +83,12 @@ function sendCommand(cmd, data) {
 	postMessage({cmd: "cmd:" + cmd, data: data})
 }
 
-function run(src) {
-    postMessage({cmd: "status", status: "running"});
-    p.run(src);
+function run(src, breakpoints) {
+    postMessage({
+        cmd: "status",
+        status: breakpoints && breakpoints.length > 0 ? "debugging" : "running"
+    });
+    p.run(src, breakpoints);
 }
 
 function submitInput(str) {
@@ -118,12 +121,15 @@ onmessage = (ev) => {
             },
             postExec: function () {
                 updateOutput(true);
-                postMessage({cmd: "done"});
+                postMessage({
+                    cmd: "done",
+                    suspendedAt: p.suspended ? p.dbgCurrentLine : null
+                });
                 if (p.requestInput) {
                     postMessage({cmd: "input", prompt: p.inputPrompt});
                 }
             },
-            handleInput: true,
+            handleInput: configOptions && configOptions.handleInput || false,
             inlineInput: configOptions && configOptions.inlineInput || false
         };
         p = new Pyodide(options);
@@ -147,11 +153,11 @@ onmessage = (ev) => {
             break;
         case "run":
         	if (loaded) {
-        		run(msg.code);
+        		run(msg.code, msg.breakpoints);
         	} else {
                 postMessage({cmd: "status", status: "startup"});
                 p.load(() => {
-                    run(msg.code);
+                    run(msg.code, msg.breakpoints);
                     loaded = true;
                 });
         	}
@@ -161,6 +167,20 @@ onmessage = (ev) => {
             break;
         case "cancel":
             cancelInput();
+            break;
+        case "debug":
+            if (loaded && p.suspended) {
+                switch (msg.dbg) {
+                case "next":
+                case "step":
+                case "return":
+                case "continue":
+                    p.continueDebugging(msg.dbg);
+                    break;
+                }
+            } else {
+                postMessage({cmd: "done"});
+            }
             break;
         case "get":
             postMessage({cmd: "file", path: msg.path, data: p.fs.getFile(msg.path)});
