@@ -176,7 +176,7 @@ onmessage = (ev) => {
                 case "return":
                 case "continue":
                 case "quit":
-                    p.continueDebugging(msg.dbg);
+                    p.continueDebugging(msg.dbg, msg.breakpoints);
                     break;
                 }
             } else {

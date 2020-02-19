@@ -266,7 +266,7 @@ class Pyodide {
                             if cmd is not None:
                                 self.break_action.append((cmd,))
                     
-                            # current state ("s"=step, "n"=next, "r"=return, "c"=continue)
+                            # state ("s"=step, "n"=next, "r"=return, "c"=continue)
                             state = "s" if self.break_at_start else "c"
                             # index of first action in self.break_action to perform
                             action_count = 0
@@ -422,9 +422,12 @@ class Pyodide {
                         exec(code, global_variables)
                         return False
 
-                def continue_debugging(dbg_command):
+                def continue_debugging(dbg_command, breakpoints):
                     if dbg is not None and dbg.is_suspended():
                         dbg.init_output()  # can be a new io.StringIO() object
+                        dbg.clear_breakspoints()
+                        for breakpoint in breakpoints:
+                            dbg.set_breakpoint(breakpoint)
                         dbg.exec_cmd(dbg_command)
                         return dbg.is_suspended()
                 
@@ -761,7 +764,7 @@ class Pyodide {
         }
     }
 
-    continueDebugging(dbgCommand) {
+    continueDebugging(dbgCommand, breakpoints) {
         // (re)set stdout and stderr
         pyodide.runPython(`
             import io, sys
@@ -769,11 +772,15 @@ class Pyodide {
             sys.stderr = sys.stdout
         `);
 
+        const bpList = breakpoints && breakpoints.length > 0
+            ? "[" + breakpoints.map((bp) => bp.toString(10)).join(", ") + "]"
+            : "[]";
+
         try {
             self.dbg_command = dbgCommand;
             pyodide.runPython(`
                 import js
-                suspended = continue_debugging(js.dbg_command)
+                suspended = continue_debugging(js.dbg_command, breakpoints=${bpList})
                 done = not suspended
                 js.pyodideGlobal.setDbgCurrentLine(debug_current_line())
             `);

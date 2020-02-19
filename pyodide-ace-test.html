@@ -97,6 +97,14 @@ window.addEventListener("load", () => {
     const btnDbgCont = document.getElementById("btn-dbg-cont");
     const btnDbgQuit = document.getElementById("btn-dbg-quit");
 
+    function getBreakpoints() {
+        const breakpoints = srcEditor.session.getBreakpoints();
+        const bpLines = breakpoints
+            .map((cls, i) => cls ? i + 1 : null)
+            .filter((line) => line !== null);
+        return bpLines;
+    }
+
 	let pyWorker = new PyWorker("pyodide-webworker.js");
     let dirtyFiles = [];
     let dbgCurrentLine = null;
@@ -104,11 +112,7 @@ window.addEventListener("load", () => {
 	pyWorker.addCommand("alert", (msg) => { alert(msg); });
 	btnRun.addEventListener("click", () => {
 		const src = srcEditor.getValue();
-        const breakpoints = srcEditor.session.getBreakpoints();
-        const bpLines = breakpoints
-            .map((cls, i) => cls ? i + 1 : null)
-            .filter((line) => line !== null);
-        pyWorker.run(src, bpLines);
+        pyWorker.run(src, getBreakpoints());
 		btnRun.disabled = true;
 		btnStop.disabled = false;
         elBusy.style.display = "inline-block";
@@ -119,25 +123,25 @@ window.addEventListener("load", () => {
 		btnRun.disabled = false;
     }, false);
     btnDbgNext.addEventListener("click", () => {
-        pyWorker.dbgResume("next");
+        pyWorker.dbgResume("next", getBreakpoints());
 		btnRun.disabled = true;
 		btnStop.disabled = false;
         elBusy.style.display = "inline-block";
     }, false);
     btnDbgStep.addEventListener("click", () => {
-        pyWorker.dbgResume("step");
+        pyWorker.dbgResume("step", getBreakpoints());
 		btnRun.disabled = true;
 		btnStop.disabled = false;
         elBusy.style.display = "inline-block";
     }, false);
     btnDbgRet.addEventListener("click", () => {
-        pyWorker.dbgResume("return");
+        pyWorker.dbgResume("return", getBreakpoints());
 		btnRun.disabled = true;
 		btnStop.disabled = false;
         elBusy.style.display = "inline-block";
     }, false);
     btnDbgCont.addEventListener("click", () => {
-        pyWorker.dbgResume("continue");
+        pyWorker.dbgResume("continue", getBreakpoints());
 		btnRun.disabled = true;
 		btnStop.disabled = false;
         elBusy.style.display = "inline-block";
@@ -309,6 +313,22 @@ def f():
 f()
 </script>
 
+<script id="ex-rec" type="text/x-sample-code">
+def fact(n):
+    print("fact", n)
+    if n > 0:
+        print(n, "is strictly positive")
+        f1 = fact(n - 1)
+        return n * f1
+    else:
+        print("n is 0")
+        return 1
+
+print("begin")
+print("fact", 5, "=", fact(5))
+print("end")
+</script>
+
 <script id="ex-input" type="text/x-sample-code">
 str = input("Number: ")
 print("10 times", str, "is", 10 * float(str))
@@ -391,6 +411,7 @@ f()
         <p>
             Sample code:
             <a onclick="srcEditor.setValue(document.getElementById('ex-def').textContent.trim(), 1); srcEditor.session.clearBreakpoints();" href="#">def</a>
+            <a onclick="srcEditor.setValue(document.getElementById('ex-rec').textContent.trim(), 1); srcEditor.session.clearBreakpoints();" href="#">recursive</a>
             <a onclick="srcEditor.setValue(document.getElementById('ex-input').textContent.trim(), 1); srcEditor.session.clearBreakpoints();" href="#">input</a>
             <a onclick="srcEditor.setValue(document.getElementById('ex-files').textContent.trim(), 1); srcEditor.session.clearBreakpoints();" href="#">files</a>
             <a onclick="srcEditor.setValue(document.getElementById('ex-numpy').textContent.trim(), 1); srcEditor.session.clearBreakpoints();" href="#">numpy</a>
