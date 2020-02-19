@@ -92,8 +92,8 @@ class Dbg:
     def debug_call(self, fun, *args, **kwargs):
         self.debug_(fun, False, args, kwargs)
 
-    def debug_code(self, code, locals=None):
-        self.debug_(lambda: exec(code, globals(), locals), True, (), {})
+    def debug_code(self, code, globals=globals(), locals=None):
+        self.debug_(lambda: exec(code, globals, locals), True, (), {})
 
     def resume(self, cmd):
         if cmd is not None:
@@ -247,4 +247,4 @@ def debugcode(code, locals=None, breakpoints=None):
     if breakpoints:
         for breakpoint in breakpoints:
             dbg.set_breakpoint(breakpoint)
-    dbg.debug_code(code, locals)
+    dbg.debug_code(code, locals=locals)

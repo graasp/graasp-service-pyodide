@@ -259,8 +259,8 @@ class Pyodide {
                         def debug_call(self, fun, *args, **kwargs):
                             self.debug_(fun, False, args, kwargs)
                     
-                        def debug_code(self, code, locals=None):
-                            self.debug_(lambda: exec(code, globals(), locals), True, (), {})
+                        def debug_code(self, code, globals=globals(), locals=None):
+                            self.debug_(lambda: exec(code, globals, locals), True, (), {})
                     
                         def resume(self, cmd):
                             if cmd is not None:
@@ -416,7 +416,7 @@ class Pyodide {
                         dbg.break_at_start = False;
                         for breakpoint in breakpoints:
                             dbg.set_breakpoint(breakpoint)
-                        dbg.debug_code(code, global_variables)
+                        dbg.debug_code(code, globals=global_variables)
                         return dbg.is_suspended()
                     else:
                         exec(code, global_variables)
