@@ -743,6 +743,7 @@ class Pyodide {
                 return false;
             } else {
                 errMsg = err.message;
+                pyodide.globals.done = true;
             }
         }
 
@@ -775,6 +776,7 @@ class Pyodide {
 
             this.requestInput = false;
             self.input_string = str;
+            let errMsg = "";
             if (this.suspended) {
                 // submit input to debugger
                 try {
@@ -790,21 +792,27 @@ class Pyodide {
                     this.inputPrompt = null;
                 } catch (err) {}
             } else {
-                pyodide.runPython(`
-                    import js
-                    evaluator.submit_input(js.input_string)
-                    done = evaluator.done
-                    # suspended = evaluator.suspended
-                    input_prompt = evaluator.prompt
-                `);
-                if (!pyodide.globals.done && !pyodide.globals.suspended) {
-                    this.inputPrompt = pyodide.globals.input_prompt;
-                    this.requestInput = true;
+                // submit input using evaluator (coroutine)
+                try {
+                    pyodide.runPython(`
+                        import js
+                        evaluator.submit_input(js.input_string)
+                        done = evaluator.done
+                        # suspended = evaluator.suspended
+                        input_prompt = evaluator.prompt
+                    `);
+                    if (!pyodide.globals.done && !pyodide.globals.suspended) {
+                        this.inputPrompt = pyodide.globals.input_prompt;
+                        this.requestInput = true;
+                    }
+                } catch (err) {
+                    errMsg = err.message;
+                    pyodide.globals.done = true;
                 }
             }
 
             let stdout = pyodide.runPython("sys.stdout.getvalue()");
-            this.write(stdout);
+            this.write(stdout + errMsg);
 
             if (!pyodide.globals.done && !pyodide.globals.suspended && this.inlineInput) {
                 // write prompt to stdout
