@@ -18,6 +18,15 @@ Author: Yves Piguet, EPFL, 2019-2020
 var srcEditor;
 var outputEditor;
 var inputStart = null;
+var pyWorker = null;
+
+function setSource(src) {
+    if (pyWorker.isSuspended) {
+        pyWorker.dbgResume("quit");
+    }
+    srcEditor.setValue(src, 1); 
+    srcEditor.session.clearBreakpoints();
+}
 
 window.addEventListener("load", () => {
     srcEditor = ace.edit("src-editor");
@@ -106,7 +115,7 @@ window.addEventListener("load", () => {
         return bpLines;
     }
 
-	let pyWorker = new PyWorker("pyodide-webworker.js");
+	pyWorker = new PyWorker("pyodide-webworker.js");
     let dirtyFiles = [];
     let dbgCurrentLine = null;
 	pyWorker.timeout = 60
@@ -412,13 +421,13 @@ f()
 
         <p>
             Sample code:
-            <a onclick="srcEditor.setValue(document.getElementById('ex-def').textContent.trim(), 1); srcEditor.session.clearBreakpoints();" href="#">def</a>
-            <a onclick="srcEditor.setValue(document.getElementById('ex-rec').textContent.trim(), 1); srcEditor.session.clearBreakpoints();" href="#">recursive</a>
-            <a onclick="srcEditor.setValue(document.getElementById('ex-input').textContent.trim(), 1); srcEditor.session.clearBreakpoints();" href="#">input</a>
-            <a onclick="srcEditor.setValue(document.getElementById('ex-files').textContent.trim(), 1); srcEditor.session.clearBreakpoints();" href="#">files</a>
-            <a onclick="srcEditor.setValue(document.getElementById('ex-numpy').textContent.trim(), 1); srcEditor.session.clearBreakpoints();" href="#">numpy</a>
-            <a onclick="srcEditor.setValue(document.getElementById('ex-matplotlib').textContent.trim(), 1); srcEditor.session.clearBreakpoints();" href="#">matplotlib</a>
-            <a onclick="srcEditor.setValue(document.getElementById('ex-pandas').textContent.trim(), 1); srcEditor.session.clearBreakpoints();" href="#">pandas</a>
+            <a onclick="setSource(document.getElementById('ex-def').textContent.trim());" href="#">def</a>
+            <a onclick="setSource(document.getElementById('ex-rec').textContent.trim());" href="#">recursive</a>
+            <a onclick="setSource(document.getElementById('ex-input').textContent.trim());" href="#">input</a>
+            <a onclick="setSource(document.getElementById('ex-files').textContent.trim());" href="#">files</a>
+            <a onclick="setSource(document.getElementById('ex-numpy').textContent.trim());" href="#">numpy</a>
+            <a onclick="setSource(document.getElementById('ex-matplotlib').textContent.trim());" href="#">matplotlib</a>
+            <a onclick="setSource(document.getElementById('ex-pandas').textContent.trim());" href="#">pandas</a>
         </p>
 
         <p>
