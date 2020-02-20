@@ -91,8 +91,8 @@ function run(src, breakpoints) {
     p.run(src, breakpoints);
 }
 
-function submitInput(str) {
-    p.submitInput(str);
+function submitInput(str, breakpoints) {
+    p.submitInput(str, breakpoints);
 }
 
 function cancelInput(str) {
@@ -176,7 +176,7 @@ onmessage = (ev) => {
                 case "return":
                 case "continue":
                 case "quit":
-                    p.continueDebugging(msg.dbg, msg.breakpoints);
+                    p.continueDebugging(msg.dbg);
                     break;
                 }
             } else {

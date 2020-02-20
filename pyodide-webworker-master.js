@@ -192,12 +192,11 @@ class PyWorker {
         }
     }
 
-	dbgResume(dbgCmd, breakpoints) {
+	dbgResume(dbgCmd) {
 		if (this.worker && this.isSuspended) {
 			const msg = {
 				cmd: "debug",
-				dbg: dbgCmd,
-				breakpoints: breakpoints || []
+				dbg: dbgCmd
 			};
     		this.worker.postMessage(JSON.stringify(msg));
     		this.isRunning = true;

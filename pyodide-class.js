@@ -177,10 +177,9 @@ class Pyodide {
                             pyodideGlobal.markFileDirty(self.filename)
                             super().close()
 
-                global open
                 def open(filename, mode="r", encoding=None):
                     return MyTextFile(filename, mode)
-
+    
                 import os
 
                 def __os_listdir(path="."):
@@ -189,13 +188,15 @@ class Pyodide {
 
                 # user code execution
                 global_variables = {
-                    "open": open
+                    "open": open,
+                    "input": input
                 }
 
                 # global debugger
                 dbg = None
 
                 def execute_code(src, breakpoints=None):
+                    """Return 0 if done, 1 if suspended in debugger, 2 if waiting for input"""
 
                     class Dbg:
 
@@ -205,6 +206,9 @@ class Pyodide {
                     
                         class Suspended(Exception):
                             pass
+                        
+                        class SuspendedForInput(Suspended):
+                            pass
                     
                         def __init__(self, interactive=True):
                             self.interactive = interactive
@@ -213,12 +217,14 @@ class Pyodide {
                             # breakpoint line numbers
                             self.breakpoints = set()
                             self.break_at_start = True
-                            # for past breakpoints, tuple with action
-                            # ("c"=continue, "n"=next, "s"=step, or "r"=return) and locals
+                            # past actions or inputs from the user
+                            # ("c"=continue, "n"=next, "s"=step, "r"=return, etc.)
                             # resume will execute them and suspend execution when they're exhausted
-                            self.break_action = []
+                            self.debug_action_history = []
                             # True to ignore trace calls until 2nd event="call"
                             self.ignore_top_call = False
+                            # substitution for input global function
+                            self.input_debug = None
                     
                             self.last_command = ""
                     
@@ -245,13 +251,16 @@ class Pyodide {
                         def is_suspended(self):
                             return self.frame is not None
                     
+                        def is_requesting_input(self):
+                            return self.request_input
+
                         def debug_(self, fun, ignore_top_call, args, kwargs):
                             self.fun = fun
                             self.args = args
                             self.kwargs = kwargs
                             self.ignore_top_call = ignore_top_call
                             self.returned_value = None
-                            self.break_action = []
+                            self.debug_action_history = []
                             self.resume(None)
                             if self.interactive:
                                 self.cli()
@@ -260,15 +269,18 @@ class Pyodide {
                             self.debug_(fun, False, args, kwargs)
                     
                         def debug_code(self, code, globals=globals(), locals=None):
+                            def input(prompt):
+                                return self.input_debug(prompt)
+                            globals["input"] = input
                             self.debug_(lambda: exec(code, globals, locals), True, (), {})
                     
                         def resume(self, cmd):
                             if cmd is not None:
-                                self.break_action.append((cmd,))
+                                self.debug_action_history.append(cmd)
                     
                             # state ("s"=step, "n"=next, "r"=return, "c"=continue)
                             state = "s" if self.break_at_start else "c"
-                            # index of first action in self.break_action to perform
+                            # index of first action in self.debug_action_history to perform
                             action_count = 0
                             # call depth used for "n" and "r"
                             call_depth = 0
@@ -280,6 +292,16 @@ class Pyodide {
                                 nonlocal state, action_count, call_depth, last_break_depth, call_count
                                 if self.ignore_top_call:
                                     if event == "call":
+                                        if frame.f_code.co_name == "input":
+                                            if action_count >= len(self.debug_action_history):
+                                                # call to input(prompt): display prompt and request user input
+                                                if frame.f_locals["prompt"] is not None:
+                                                    self.sys.stdout.write(frame.f_locals["prompt"])
+                                                self.frame = frame
+                                                raise self.SuspendedForInput()
+                                            else:
+                                                # execute input() defined below (picks input in self.debug_action_history)
+                                                pass
                                         call_count += 1
                                         call_depth += 1
                                     if call_count < 2:
@@ -291,18 +313,18 @@ class Pyodide {
                                         state == "s" or
                                         frame.f_lineno in self.breakpoints):
                                         # breakpoint (explicit, or following s/n/r which should break here)
-                                        if action_count >= len(self.break_action):
+                                        if action_count >= len(self.debug_action_history):
                                             # not reached yet: really break here
                                             self.frame = frame
                                             raise self.Suspended()
                                         else:
                                             # already reached: continue
-                                            state = self.break_action[action_count][0]
+                                            state = self.debug_action_history[action_count]
                                             action_count += 1
                                             last_break_depth = call_depth
-                                            if action_count >= len(self.break_action):
+                                            if action_count >= len(self.debug_action_history):
                                                 self.enable_print(True)
-                                    elif action_count >= len(self.break_action):
+                                    elif action_count >= len(self.debug_action_history):
                                         self.enable_print(True)
                                 elif event is "call":
                                     call_depth += 1
@@ -310,11 +332,22 @@ class Pyodide {
                                     call_depth -= 1
                                 return trace
                     
+                            def input(prompt):
+                                nonlocal action_count
+                                str = self.debug_action_history[action_count]
+                                action_count += 1
+                                return str
+                            self.input_debug = input
+
                             suspended = False
-                            self.enable_print(len(self.break_action) <= 1)
+                            self.request_input = False
+                            self.enable_print(len(self.debug_action_history) <= 1)
                             self.sys.settrace(trace)
                             try:
                                 self.returned_value = self.fun(*self.args, **self.kwargs)
+                            except self.SuspendedForInput:
+                                suspended = True
+                                self.request_input = True
                             except self.Suspended:
                                 suspended = True
                             finally:
@@ -322,7 +355,19 @@ class Pyodide {
                                 self.enable_print(True)
                             if not suspended:
                                 self.frame = None
-                    
+
+                        def eval_code(self, src):
+                            try:
+                                code = compile(src, "<stdin>", "single")
+                                exec(code,
+                                     self.frame.f_globals,
+                                     self.frame.f_locals)
+                            except Exception as e:
+                                import traceback
+                                traceback.print_exception(etype=type(e),
+                                                          value=e,
+                                                          tb=e.__traceback__)
+
                         def exec_cmd(self, cmd):
                             cmd = cmd.strip() or self.last_command
                             r = self.re.compile(r"^(\S+)(\s+(\S+))$")
@@ -387,19 +432,15 @@ class Pyodide {
                                     print(f"{frame.f_code.co_name} at line {frame.f_lineno}")
                                     frame = frame.f_back
                             elif cmd != "":
-                                try:
-                                    exec(compile(cmd, "<stdin>", "single"),
-                                            self.frame.f_globals,
-                                            self.frame.f_locals)
-                                except Exception as e:
-                                    import traceback
-                                    traceback.print_exception(etype=type(e),
-                                                            value=e,
-                                                            tb=e.__traceback__)
+                                self.eval_code(cmd)
                     
                             # return true when execution is completed
                             return self.frame is None
                     
+                        def submit_input(self, input):
+                            self.debug_action_history.append(input)
+                            self.resume(None)
+
                         def cli(self):
                             while self.is_suspended():
                                 cmd = input(f"{self.frame.f_code.co_name}:{self.frame.f_lineno} dbg> ")
@@ -417,20 +458,23 @@ class Pyodide {
                         for breakpoint in breakpoints:
                             dbg.set_breakpoint(breakpoint)
                         dbg.debug_code(code, globals=global_variables)
-                        return dbg.is_suspended()
+                        return 0 if not dbg.is_suspended() else 2 if dbg.request_input else 1
                     else:
                         exec(code, global_variables)
-                        return False
+                        return 0
 
-                def continue_debugging(dbg_command, breakpoints):
+                def continue_debugging(dbg_command):
                     if dbg is not None and dbg.is_suspended():
                         dbg.init_output()  # can be a new io.StringIO() object
-                        dbg.clear_breakspoints()
-                        for breakpoint in breakpoints:
-                            dbg.set_breakpoint(breakpoint)
                         dbg.exec_cmd(dbg_command)
-                        return dbg.is_suspended()
+                        return 0 if not dbg.is_suspended() else 2 if dbg.request_input else 1
                 
+                def submit_input_to_debugger(input):
+                    if dbg is not None and dbg.is_suspended() and dbg.request_input:
+                        dbg.init_output()  # can be a new io.StringIO() object
+                        dbg.submit_input(input)
+                        return 0 if not dbg.is_suspended() else 2 if dbg.request_input else 1
+
                 def debug_current_line():
                     return dbg.current_line if dbg and dbg.is_suspended() else None
             `);
@@ -642,11 +686,14 @@ class Pyodide {
                 const bpList = "[" + breakpoints.map((bp) => bp.toString(10)).join(", ") + "]";
                 pyodide.runPython(`
                     import js
-                    suspended = execute_code(src, breakpoints=${bpList})
+                    status = execute_code(src, breakpoints=${bpList})
+                    suspended = status != 0
                     done = not suspended
                     js.pyodideGlobal.setDbgCurrentLine(debug_current_line())
                 `);
                 this.suspended = pyodide.globals.suspended;
+                this.requestInput = pyodide.globals.status == 2;
+                this.inputPrompt = null;
             } else if (this.handleInput) {
                 // convert src to a coroutine
                 pyodide.runPython("evaluator = CodeWithInputEvaluator(src, global_variables)");
@@ -728,16 +775,32 @@ class Pyodide {
 
             this.requestInput = false;
             self.input_string = str;
-            pyodide.runPython(`
-                import js
-                evaluator.submit_input(js.input_string)
-                done = evaluator.done
-                # suspended = evaluator.suspended
-                input_prompt = evaluator.prompt
-            `);
-            if (!pyodide.globals.done && !pyodide.globals.suspended) {
-                this.inputPrompt = pyodide.globals.input_prompt;
-                this.requestInput = true;
+            if (this.suspended) {
+                // submit input to debugger
+                try {
+                    pyodide.runPython(`
+                        import js
+                        status = submit_input_to_debugger(js.input_string)
+                        suspended = status != 0
+                        done = not suspended
+                        js.pyodideGlobal.setDbgCurrentLine(debug_current_line())
+                    `);
+                    this.suspended = pyodide.globals.suspended;
+                    this.requestInput = pyodide.globals.status == 2;
+                    this.inputPrompt = null;
+                } catch (err) {}
+            } else {
+                pyodide.runPython(`
+                    import js
+                    evaluator.submit_input(js.input_string)
+                    done = evaluator.done
+                    # suspended = evaluator.suspended
+                    input_prompt = evaluator.prompt
+                `);
+                if (!pyodide.globals.done && !pyodide.globals.suspended) {
+                    this.inputPrompt = pyodide.globals.input_prompt;
+                    this.requestInput = true;
+                }
             }
 
             let stdout = pyodide.runPython("sys.stdout.getvalue()");
@@ -764,7 +827,7 @@ class Pyodide {
         }
     }
 
-    continueDebugging(dbgCommand, breakpoints) {
+    continueDebugging(dbgCommand) {
         // (re)set stdout and stderr
         pyodide.runPython(`
             import io, sys
@@ -772,18 +835,18 @@ class Pyodide {
             sys.stderr = sys.stdout
         `);
 
-        const bpList = breakpoints && breakpoints.length > 0
-            ? "[" + breakpoints.map((bp) => bp.toString(10)).join(", ") + "]"
-            : "[]";
-
         try {
             self.dbg_command = dbgCommand;
             pyodide.runPython(`
                 import js
-                suspended = continue_debugging(js.dbg_command, breakpoints=${bpList})
+                status = continue_debugging(js.dbg_command)
+                suspended = status != 0
                 done = not suspended
                 js.pyodideGlobal.setDbgCurrentLine(debug_current_line())
             `);
+            this.suspended = pyodide.globals.suspended;
+            this.requestInput = pyodide.globals.status == 2;
+            this.inputPrompt = null;
         } catch (err) {}
 
         let stdout = pyodide.runPython("sys.stdout.getvalue()");

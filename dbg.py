@@ -39,6 +39,9 @@ class Dbg:
     class Suspended(Exception):
         pass
 
+    class SuspendedForInput(Suspended):
+        pass
+    
     def __init__(self, interactive=True):
         self.interactive = interactive
         self.frame = None
@@ -46,12 +49,14 @@ class Dbg:
         # breakpoint line numbers
         self.breakpoints = set()
         self.break_at_start = True
-        # for past breakpoints, tuple with action
-        # ("c"=continue, "n"=next, "s"=step, or "r"=return) and locals
+        # past actions or inputs from the user
+        # ("c"=continue, "n"=next, "s"=step, "r"=return, etc.)
         # resume will execute them and suspend execution when they're exhausted
-        self.break_action = []
+        self.debug_action_history = []
         # True to ignore trace calls until 2nd event="call"
         self.ignore_top_call = False
+        # substitution for input global function
+        self.input_debug = None
 
         self.last_command = ""
 
@@ -78,13 +83,16 @@ class Dbg:
     def is_suspended(self):
         return self.frame is not None
 
+    def is_requesting_input(self):
+        return self.request_input
+
     def debug_(self, fun, ignore_top_call, args, kwargs):
         self.fun = fun
         self.args = args
         self.kwargs = kwargs
         self.ignore_top_call = ignore_top_call
         self.returned_value = None
-        self.break_action = []
+        self.debug_action_history = []
         self.resume(None)
         if self.interactive:
             self.cli()
@@ -93,15 +101,18 @@ class Dbg:
         self.debug_(fun, False, args, kwargs)
 
     def debug_code(self, code, globals=globals(), locals=None):
+        def input(prompt):
+            return self.input_debug(prompt)
+        globals["input"] = input
         self.debug_(lambda: exec(code, globals, locals), True, (), {})
 
     def resume(self, cmd):
         if cmd is not None:
-            self.break_action.append((cmd,))
+            self.debug_action_history.append(cmd)
 
-        # current state ("s"=step, "n"=next, "r"=return, "c"=continue)
+        # state ("s"=step, "n"=next, "r"=return, "c"=continue)
         state = "s" if self.break_at_start else "c"
-        # index of first action in self.break_action to perform
+        # index of first action in self.debug_action_history to perform
         action_count = 0
         # call depth used for "n" and "r"
         call_depth = 0
@@ -113,29 +124,39 @@ class Dbg:
             nonlocal state, action_count, call_depth, last_break_depth, call_count
             if self.ignore_top_call:
                 if event == "call":
+                    if frame.f_code.co_name == "input":
+                        if action_count >= len(self.debug_action_history):
+                            # call to input(prompt): display prompt and request user input
+                            if frame.f_locals["prompt"] is not None:
+                                self.sys.stdout.write(frame.f_locals["prompt"])
+                            self.frame = frame
+                            raise self.SuspendedForInput()
+                        else:
+                            # execute input() defined below (picks input in self.debug_action_history)
+                            pass
                     call_count += 1
                     call_depth += 1
                 if call_count < 2:
                     return
             if event is "line":
-                self.current_line = line
+                self.current_line = frame.f_lineno
                 if (state == "n" and call_depth <= last_break_depth or
                     state == "r" and call_depth < last_break_depth or
                     state == "s" or
                     frame.f_lineno in self.breakpoints):
                     # breakpoint (explicit, or following s/n/r which should break here)
-                    if action_count >= len(self.break_action):
+                    if action_count >= len(self.debug_action_history):
                         # not reached yet: really break here
                         self.frame = frame
                         raise self.Suspended()
                     else:
                         # already reached: continue
-                        state = self.break_action[action_count][0]
+                        state = self.debug_action_history[action_count]
                         action_count += 1
                         last_break_depth = call_depth
-                        if action_count >= len(self.break_action):
+                        if action_count >= len(self.debug_action_history):
                             self.enable_print(True)
-                elif action_count >= len(self.break_action):
+                elif action_count >= len(self.debug_action_history):
                     self.enable_print(True)
             elif event is "call":
                 call_depth += 1
@@ -143,11 +164,22 @@ class Dbg:
                 call_depth -= 1
             return trace
 
+        def input(prompt):
+            nonlocal action_count
+            str = self.debug_action_history[action_count]
+            action_count += 1
+            return str
+        self.input_debug = input
+
         suspended = False
-        self.enable_print(len(self.break_action) <= 1)
+        self.request_input = False
+        self.enable_print(len(self.debug_action_history) <= 1)
         self.sys.settrace(trace)
         try:
             self.returned_value = self.fun(*self.args, **self.kwargs)
+        except self.SuspendedForInput:
+            suspended = True
+            self.request_input = True
         except self.Suspended:
             suspended = True
         finally:
@@ -155,6 +187,18 @@ class Dbg:
             self.enable_print(True)
         if not suspended:
             self.frame = None
+
+    def eval_code(self, src):
+        try:
+            code = compile(src, "<stdin>", "single")
+            exec(code,
+                    self.frame.f_globals,
+                    self.frame.f_locals)
+        except Exception as e:
+            import traceback
+            traceback.print_exception(etype=type(e),
+                                        value=e,
+                                        tb=e.__traceback__)
 
     def exec_cmd(self, cmd):
         cmd = cmd.strip() or self.last_command
@@ -220,18 +264,14 @@ class Dbg:
                 print(f"{frame.f_code.co_name} at line {frame.f_lineno}")
                 frame = frame.f_back
         elif cmd != "":
-            try:
-                exec(compile(cmd, "<stdin>", "single"),
-                        self.frame.f_globals,
-                        self.frame.f_locals)
-            except Exception as e:
-                import traceback
-                traceback.print_exception(etype=type(e),
-                                          value=e,
-                                          tb=e.__traceback__)
+            self.eval_code(cmd)
 
         # return true when execution is completed
         return self.frame is None
+
+    def submit_input(self, input):
+        self.debug_action_history.append(input)
+        self.resume(None)
 
     def cli(self):
         while self.is_suspended():

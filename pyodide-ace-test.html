@@ -27,7 +27,8 @@ window.addEventListener("load", () => {
     srcEditor.on("guttermousedown", (e) => {
         let target = e.domEvent.target;
         if (target.className.indexOf("ace_gutter-cell") != -1 &&
-            e.clientX <= 25 + target.getBoundingClientRect().left) {
+            e.clientX <= 25 + target.getBoundingClientRect().left &&
+            !e.editor.getReadOnly()) {
             const row = e.getDocumentPosition().row;
             const breakpoints = e.editor.session.getBreakpoints(row, 0);
             if (breakpoints[row] === undefined) {
@@ -123,25 +124,25 @@ window.addEventListener("load", () => {
 		btnRun.disabled = false;
     }, false);
     btnDbgNext.addEventListener("click", () => {
-        pyWorker.dbgResume("next", getBreakpoints());
+        pyWorker.dbgResume("next");
 		btnRun.disabled = true;
 		btnStop.disabled = false;
         elBusy.style.display = "inline-block";
     }, false);
     btnDbgStep.addEventListener("click", () => {
-        pyWorker.dbgResume("step", getBreakpoints());
+        pyWorker.dbgResume("step");
 		btnRun.disabled = true;
 		btnStop.disabled = false;
         elBusy.style.display = "inline-block";
     }, false);
     btnDbgRet.addEventListener("click", () => {
-        pyWorker.dbgResume("return", getBreakpoints());
+        pyWorker.dbgResume("return");
 		btnRun.disabled = true;
 		btnStop.disabled = false;
         elBusy.style.display = "inline-block";
     }, false);
     btnDbgCont.addEventListener("click", () => {
-        pyWorker.dbgResume("continue", getBreakpoints());
+        pyWorker.dbgResume("continue");
 		btnRun.disabled = true;
 		btnStop.disabled = false;
         elBusy.style.display = "inline-block";
@@ -167,11 +168,12 @@ window.addEventListener("load", () => {
         elStatus.textContent = status || (pyWorker.isSuspended ? "debug" : "ready");
         spanDebugger.style.display = pyWorker.isSuspended ? "inline" : "none";
         if (dbgCurrentLine != null) {
+            srcEditor.setReadOnly(false);
             srcEditor.session.removeGutterDecoration(dbgCurrentLine - 1, "dbg-current-line");
             dbgCurrentLine = null;
         }
         if (pyWorker.isSuspended) {
-            console.info(`suspended at ${pyWorker.dbgCurrentLine}`);
+            srcEditor.setReadOnly(true);
             dbgCurrentLine = pyWorker.dbgCurrentLine;
             srcEditor.session.addGutterDecoration(dbgCurrentLine - 1, "dbg-current-line");
         }
