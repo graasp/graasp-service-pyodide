@@ -24,7 +24,7 @@ function setSource(src) {
     if (pyWorker.isSuspended) {
         pyWorker.dbgResume("quit");
     }
-    srcEditor.setValue(src, 1); 
+    srcEditor.setValue(src, 1);
     srcEditor.session.clearBreakpoints();
 }
 
@@ -165,6 +165,10 @@ window.addEventListener("load", () => {
 	btnClear.addEventListener("click", () => {
 		pyWorker.clearOutput();
         pyWorker.clearFigure();
+        if (inputStart) {
+            inputStart = outputEditor.getSelectionRange().start;
+            outputEditor.focus();
+        }
 	}, false);
     btnDirty.addEventListener("click", () => {
         pyWorker.printToOutput("\nDirty files:\n" + dirtyFiles.join("\n") + "\n");
