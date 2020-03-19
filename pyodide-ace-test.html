@@ -36,6 +36,11 @@ window.addEventListener("load", () => {
     pui = new PyodideUI({
         srcEditorId: "src-editor",
         outputEditorId: "output-editor",
+        onTerminated: () => {
+            btnStop.disabled = true;
+    		btnRun.disabled = false;
+            elBusy.style.display = "none";
+        },
         onChangeStatus: (status) => {
             switch (status) {
             case "startup":
@@ -48,15 +53,17 @@ window.addEventListener("load", () => {
         		btnStop.disabled = false;
                 elBusy.style.display = "inline-block";
                 break;
-            case "ready":
+            case "input":
                 btnRun.disabled = false;
-                btnStop.disabled = true;
+                btnStop.disabled = false;
+                elBusy.style.display = "none";
+                spanDebugger.style.display = "none";
+                break;
+            case "ready":
                 elBusy.style.display = "none";
                 spanDebugger.style.display = "none";
                 break;
             case "debug":
-                btnRun.disabled = true;
-                btnStop.disabled = true;
                 elBusy.style.display = "none";
                 spanDebugger.style.display = "inline-block";
                 break;

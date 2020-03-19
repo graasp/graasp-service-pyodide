@@ -23,6 +23,7 @@ const options = {
     srcTheme: "ace/theme/chrome",   // optional
     outputEditorId: "output-editor",
     outputTheme: "ace/theme/chrome",    // optional
+    onTerminated: () => {}, // optional (called when code execution is done)
     onChangeStatus: (status) => {},    // optional
     figureId: "fig",    // optional (default: no graphical output)
     onChangeFigure: () => {},   // optional
@@ -40,6 +41,7 @@ class PyodideUI {
         this.dirtyFiles = [];
         this.dbgCurrentLine = null;
     	this.pyWorker.timeout = 60
+        this.onTerminated = options.onTerminated || null;
         this.onChangeStatus = options.onChangeStatus || null;
         this.figure = null;
         if (options.figureId) {
@@ -96,7 +98,9 @@ class PyodideUI {
         };
 
         this.pyWorker.onTerminated = () => {
-            this.changeStatus("ready");
+            if (this.onTerminated) {
+                this.onTerminated();
+            }
     	};
 
         this.pyWorker.sharedOutput = true;
@@ -165,13 +169,17 @@ class PyodideUI {
             name: "cancel-input",
             bindKey: "Esc",
             exec: () => {
-                this.pyWorker.cancelInput();
-                this.outputEditor.setReadOnly(true);
-                document.getElementById(this.outputEditorId).parentElement.className = "dont-expect-input";
-                this.inputStart = null;
+                this.cancelInput();
             }
         });
 
+    }
+
+    cancelInput() {
+        this.pyWorker.cancelInput();
+        this.outputEditor.setReadOnly(true);
+        document.getElementById(this.outputEditorId).parentElement.className = "dont-expect-input";
+        this.inputStart = null;
     }
 
     clear() {
@@ -230,9 +238,13 @@ class PyodideUI {
     }
 
     stop() {
-        this.pyWorker.stop();
-        this.pyWorker.preload();
-        this.changeStatus(PyodideUI.statusStartup);
+        if (this.inputStart) {
+            this.cancelInput();
+        } else {
+            this.pyWorker.stop();
+            this.pyWorker.preload();
+            this.changeStatus(PyodideUI.statusStartup);
+        }
     }
 
     setSource(src) {
