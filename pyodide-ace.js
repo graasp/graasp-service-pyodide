@@ -40,7 +40,7 @@ class PyodideUI {
         this.pyWorker = new PyWorker("pyodide-webworker.js");
         this.dirtyFiles = [];
         this.dbgCurrentLine = null;
-    	this.pyWorker.timeout = 60
+        this.pyWorker.timeout = 60
         this.onTerminated = options.onTerminated || null;
         this.onChangeStatus = options.onChangeStatus || null;
         this.figure = null;
@@ -80,6 +80,11 @@ class PyodideUI {
             readOnly: true
         });
 
+        this.pyWorker.onError = (event) => {
+            this.outputEditor.gotoLine(1e9);
+            this.outputEditor.insert(event.message);
+        };
+
         this.pyWorker.onStatusChanged = (status) => {
             this.changeStatus(status || (this.pyWorker.isSuspended ? "debug" : "ready"));
             if (this.onSwitchDebugger) {
@@ -101,18 +106,18 @@ class PyodideUI {
             if (this.onTerminated) {
                 this.onTerminated();
             }
-    	};
+        };
 
         this.pyWorker.sharedOutput = true;
-    	this.pyWorker.onOutput = (text, append) => {
+        this.pyWorker.onOutput = (text, append) => {
             if (append) {
                 this.outputEditor.gotoLine(1e9);
-        		this.outputEditor.insert(text);
+                this.outputEditor.insert(text);
             } else {
                 this.outputEditor.setValue(text);
                 this.outputEditor.gotoLine(1e9);
             }
-    	};
+        };
         this.pyWorker.onFigure = (imageDataURL) => {
             if (this.figure) {
                 this.figure.src = imageDataURL;
@@ -125,9 +130,9 @@ class PyodideUI {
             this.dirtyFiles.push(path);
         };
         this.pyWorker.onFile = options.onFile || null;
-    	this.pyWorker.onTimeout = () => {
-    		this.pyWorker.printToOutput("\nTimeout\n");
-    	};
+        this.pyWorker.onTimeout = () => {
+            this.pyWorker.printToOutput("\nTimeout\n");
+        };
         this.pyWorker.onInput = (prompt) => {
             this.outputEditor.gotoLine(1e9);
             this.outputEditor.setReadOnly(false);
@@ -136,7 +141,7 @@ class PyodideUI {
             this.outputEditor.focus();
         };
 
-    	this.pyWorker.preload();
+        this.pyWorker.preload();
 
         // inline input
         this.outputEditor.commands.on("exec", (e) => {
