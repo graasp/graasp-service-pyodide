@@ -110,6 +110,7 @@ class Pyodide {
 
         this.handleInput = options && options.handleInput || false;
         this.inlineInput = options && options.inlineInput || false;
+        this.pyodideVersion = options && options.pyodideVersion || "";
         this.requestInput = false;
         this.inputPrompt = null;
         this.suspended = false; // in debugger
@@ -129,8 +130,8 @@ class Pyodide {
     }
 
     load(then) {
-        this.notifyStatus("loading Pyodide");
-        self.languagePluginUrl = "pyodide-build-0.14.1/";
+        this.notifyStatus("loading Pyodide" +
+            (this.pyodideVersion ? " " + this.pyodideVersion : ""));
         languagePluginLoader.then(() => {
 
             this.notifyStatus("setup");
@@ -179,7 +180,7 @@ class Pyodide {
 
                 def open(filename, mode="r", encoding=None):
                     return MyTextFile(filename, mode)
-    
+
                 import os
 
                 def __os_listdir(path="."):
@@ -203,17 +204,17 @@ class Pyodide {
                         import sys
                         import os
                         import re
-                    
+
                         class Suspended(Exception):
                             pass
-                        
+
                         class SuspendedForInput(Suspended):
                             pass
-                    
+
                         def __init__(self, interactive=True):
                             self.interactive = interactive
                             self.frame = None
-                    
+
                             # breakpoint line numbers
                             self.breakpoints = set()
                             self.break_at_start = True
@@ -225,32 +226,32 @@ class Pyodide {
                             self.ignore_top_call = False
                             # substitution for input global function
                             self.input_debug = None
-                    
+
                             self.last_command = ""
-                    
+
                             self.init_output()
                             self.null = open(self.os.devnull, "w")
-                    
+
                         def init_output(self):
                             self.stdout = self.sys.stdout
                             self.stderr = self.sys.stderr
-                    
+
                         def enable_print(self, on):
                             self.sys.stdout = self.stdout if on else self.null
                             self.sys.stderr = self.stderr if on else self.null
-                    
+
                         def clear_breakspoints(self):
                             self.breakpoints = set()
-                    
+
                         def set_breakpoint(self, lineno):
                             self.breakpoints.add(lineno)
-                    
+
                         def clear_breakspoint(self, lineno):
                             self.breakpoints.remove(lineno)
-                    
+
                         def is_suspended(self):
                             return self.frame is not None
-                    
+
                         def is_requesting_input(self):
                             return self.request_input
 
@@ -264,20 +265,20 @@ class Pyodide {
                             self.resume(None)
                             if self.interactive:
                                 self.cli()
-                    
+
                         def debug_call(self, fun, *args, **kwargs):
                             self.debug_(fun, False, args, kwargs)
-                    
+
                         def debug_code(self, code, globals=globals(), locals=None):
                             def input(prompt):
                                 return self.input_debug(prompt)
                             globals["input"] = input
                             self.debug_(lambda: exec(code, globals, locals), True, (), {})
-                    
+
                         def resume(self, cmd):
                             if cmd is not None:
                                 self.debug_action_history.append(cmd)
-                    
+
                             # state ("s"=step, "n"=next, "r"=return, "c"=continue)
                             state = "s" if self.break_at_start else "c"
                             # index of first action in self.debug_action_history to perform
@@ -287,7 +288,7 @@ class Pyodide {
                             last_break_depth = 0
                             # number of event "call"
                             call_count = 0
-                    
+
                             def trace(frame, event, arg):
                                 nonlocal state, action_count, call_depth, last_break_depth, call_count
                                 if self.ignore_top_call:
@@ -331,7 +332,7 @@ class Pyodide {
                                 elif event is "return":
                                     call_depth -= 1
                                 return trace
-                    
+
                             def input(prompt):
                                 nonlocal action_count
                                 str = self.debug_action_history[action_count]
@@ -433,10 +434,10 @@ class Pyodide {
                                     frame = frame.f_back
                             elif cmd != "":
                                 self.eval_code(cmd)
-                    
+
                             # return true when execution is completed
                             return self.frame is None
-                    
+
                         def submit_input(self, input):
                             self.debug_action_history.append(input)
                             self.resume(None)
@@ -445,7 +446,7 @@ class Pyodide {
                             while self.is_suspended():
                                 cmd = input(f"{self.frame.f_code.co_name}:{self.frame.f_lineno} dbg> ")
                                 self.exec_cmd(cmd)
-            
+
                     try:
                         code = compile(src, "<stdin>", mode="single")
                     except SyntaxError:
@@ -468,7 +469,7 @@ class Pyodide {
                         dbg.init_output()  # can be a new io.StringIO() object
                         dbg.exec_cmd(dbg_command)
                         return 0 if not dbg.is_suspended() else 2 if dbg.request_input else 1
-                
+
                 def submit_input_to_debugger(input):
                     if dbg is not None and dbg.is_suspended() and dbg.request_input:
                         dbg.init_output()  # can be a new io.StringIO() object
@@ -818,7 +819,7 @@ class Pyodide {
                 // write prompt to stdout
                 this.write(this.inputPrompt == undefined ? "? " : this.inputPrompt);
             }
-            
+
             this.postExec && this.postExec();
         }
     }

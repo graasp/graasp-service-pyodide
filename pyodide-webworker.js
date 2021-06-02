@@ -94,6 +94,8 @@ function cancelInput(str) {
 onmessage = (ev) => {
 
     function init(configOptions) {
+		var versionRes = /\/(v[\d.]+)\//.exec(pyodideURL);
+		var pyodideVersion = versionRes ? versionRes[1] : "";
         const options = {
             write: (str) => {
         	   outputBuffer += str;
@@ -122,7 +124,8 @@ onmessage = (ev) => {
                 }
             },
             handleInput: configOptions && configOptions.handleInput || false,
-            inlineInput: configOptions && configOptions.inlineInput || false
+            inlineInput: configOptions && configOptions.inlineInput || false,
+			pyodideVersion: pyodideVersion
         };
         p = new Pyodide(options);
     }
