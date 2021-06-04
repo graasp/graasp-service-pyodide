@@ -8,7 +8,7 @@ Test of pyodide, with
     - file support
     - matplotlib support
 
-Author: Yves Piguet, EPFL, 2019-2020
+Author: Yves Piguet, EPFL, 2019-2021
 
 Usage:
     const options = {
@@ -307,7 +307,7 @@ class Pyodide {
                                         call_depth += 1
                                     if call_count < 2:
                                         return
-                                if event is "line":
+                                if event == "line":
                                     self.current_line = frame.f_lineno
                                     if (state == "n" and call_depth <= last_break_depth or
                                         state == "r" and call_depth < last_break_depth or
@@ -327,9 +327,9 @@ class Pyodide {
                                                 self.enable_print(True)
                                     elif action_count >= len(self.debug_action_history):
                                         self.enable_print(True)
-                                elif event is "call":
+                                elif event == "call":
                                     call_depth += 1
-                                elif event is "return":
+                                elif event == "return":
                                     call_depth -= 1
                                 return trace
 
