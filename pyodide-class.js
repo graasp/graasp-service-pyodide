@@ -641,6 +641,7 @@ class Pyodide {
                                 ast.FunctionDef(
                                     name=function_name,
                                     args=ast.arguments(
+                                        posonlyargs=[],
                                         args=[ast.arg(arg=g, annotation=None) for g in global_var_names],
                                         defaults=[],
                                         kwarg=None,
