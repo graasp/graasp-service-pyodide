@@ -695,7 +695,7 @@ class Pyodide {
         try {
             this.notifyStatus("running");
             self.pyodideGlobal.setFigureURL = (url) => this.setFigureURL(url);
-            this.pyodide.globals.src = src;
+            this.pyodide.globals.set("src", src);
             if (breakpoints && breakpoints.length > 0) {
                 const bpList = "[" + breakpoints.map((bp) => bp.toString(10)).join(", ") + "]";
                 this.pyodide.runPython(`
@@ -705,8 +705,8 @@ class Pyodide {
                     done = not suspended
                     js.pyodideGlobal.setDbgCurrentLine(debug_current_line())
                 `);
-                this.suspended = this.pyodide.globals.suspended;
-                this.requestInput = this.pyodide.globals.status == 2;
+                this.suspended = this.pyodide.globals.get("suspended");
+                this.requestInput = this.pyodide.globals.get("status") == 2;
                 this.inputPrompt = null;
             } else if (this.handleInput) {
                 // convert src to a coroutine
@@ -718,8 +718,8 @@ class Pyodide {
                     # suspended = evaluator.suspended
                     input_prompt = evaluator.prompt
                 `);
-                if (!this.pyodide.globals.done && !this.pyodide.globals.suspended) {
-                    this.inputPrompt = this.pyodide.globals.input_prompt;
+                if (!this.pyodide.globals.get("done") && !this.pyodide.globals.get("suspended")) {
+                    this.inputPrompt = this.pyodide.globals.get("input_prompt");
                     this.requestInput = true;
                 }
             } else {
@@ -757,14 +757,14 @@ class Pyodide {
                 return false;
             } else {
                 errMsg = err.message;
-                this.pyodide.globals.done = true;
+                this.pyodide.globals.set("done", true);
             }
         }
 
         let stdout = this.pyodide.runPython("sys.stdout.getvalue()");
         this.write(stdout + errMsg);
 
-        if (!this.pyodide.globals.done && !this.pyodide.globals.suspended && this.inlineInput) {
+        if (!this.pyodide.globals.get("done") && !this.pyodide.globals.get("suspended") && this.inlineInput) {
             // write prompt to stdout
             this.write(this.inputPrompt == undefined ? "? " : this.inputPrompt);
         }
@@ -801,8 +801,8 @@ class Pyodide {
                         done = not suspended
                         js.pyodideGlobal.setDbgCurrentLine(debug_current_line())
                     `);
-                    this.suspended = this.pyodide.globals.suspended;
-                    this.requestInput = this.pyodide.globals.status == 2;
+                    this.suspended = this.pyodide.globals.get("suspended");
+                    this.requestInput = this.pyodide.globals.get("status") == 2;
                     this.inputPrompt = null;
                 } catch (err) {}
             } else {
@@ -815,20 +815,20 @@ class Pyodide {
                         # suspended = evaluator.suspended
                         input_prompt = evaluator.prompt
                     `);
-                    if (!this.pyodide.globals.done && !this.pyodide.globals.suspended) {
-                        this.inputPrompt = this.pyodide.globals.input_prompt;
+                    if (!this.pyodide.globals.get("done") && !this.pyodide.globals.get("suspended")) {
+                        this.inputPrompt = this.pyodide.globals.get("input_prompt");
                         this.requestInput = true;
                     }
                 } catch (err) {
                     errMsg = err.message;
-                    this.pyodide.globals.done = true;
+                    this.pyodide.globals.set("done", true);
                 }
             }
 
             let stdout = this.pyodide.runPython("sys.stdout.getvalue()");
             this.write(stdout + errMsg);
 
-            if (!this.pyodide.globals.done && !this.pyodide.globals.suspended && this.inlineInput) {
+            if (!this.pyodide.globals.get("done") && !this.pyodide.globals.get("suspended") && this.inlineInput) {
                 // write prompt to stdout
                 this.write(this.inputPrompt == undefined ? "? " : this.inputPrompt);
             }
@@ -866,15 +866,15 @@ class Pyodide {
                 done = not suspended
                 js.pyodideGlobal.setDbgCurrentLine(debug_current_line())
             `);
-            this.suspended = this.pyodide.globals.suspended;
-            this.requestInput = this.pyodide.globals.status == 2;
+            this.suspended = this.pyodide.globals.get("suspended");
+            this.requestInput = this.pyodide.globals.get("status") == 2;
             this.inputPrompt = null;
         } catch (err) {}
 
         let stdout = this.pyodide.runPython("sys.stdout.getvalue()");
         this.write(stdout);
 
-        if (!this.pyodide.globals.done && !this.pyodide.globals.suspended && this.inlineInput) {
+        if (!this.pyodide.globals.get("done") && !this.pyodide.globals.get("suspended") && this.inlineInput) {
             // write prompt to stdout
             this.write(this.inputPrompt == undefined ? "? " : this.inputPrompt);
         }
