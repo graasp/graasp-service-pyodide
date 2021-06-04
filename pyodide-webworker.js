@@ -33,12 +33,14 @@ Author: Yves Piguet, EPFL, 2019-2021
 
 */
 
+importScripts("pyodide-class.js");
+
 // get Pyodide URL from query string if specified there, or use default
 const pyodideURL = self.location.search
 	? decodeURIComponent(self.location.search.replace(/^\?/, ""))
-	: "https://cdn.jsdelivr.net/pyodide/v0.17.0/full/";
+	: Pyodide.defaultURL;
 
-importScripts("pyodide-class.js", pyodideURL + "pyodide.js");
+importScripts(pyodideURL + "pyodide.js");
 
 var loaded = false;
 

@@ -112,13 +112,9 @@ class Pyodide {
 
         this.handleInput = options && options.handleInput || false;
         this.inlineInput = options && options.inlineInput || false;
-        this.pyodideURL = options && options.pyodideURL || "https://cdn.jsdelivr.net/pyodide/v0.17.0/full/";
+        this.pyodideURL = options && options.pyodideURL || Pyodide.defaultURL;
 		var versionRes = /\/(v[\d.]+)\//.exec(pyodideURL);
 		this.pyodideVersion = versionRes ? versionRes[1] : "";
-        this.pyodideVersion = (function () {
-            import pyodide;
-            return pyodide.__version__;
-        })();
         this.requestInput = false;
         this.inputPrompt = null;
         this.suspended = false; // in debugger
@@ -899,3 +895,6 @@ class Pyodide {
         this.clearFigure();
     }
 }
+
+Pyodide.defaultURL = "https://cdn.jsdelivr.net/pyodide/v0.17.0/full/";
+//Pyodide.defaultURL = "https://cdn.jsdelivr.net/pyodide/dev/full/"
