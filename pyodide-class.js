@@ -101,6 +101,8 @@ class FileSystemSessionStorage extends FileSystem {
 
 class Pyodide {
     constructor(options) {
+        this.pyodide = null;
+
         this.postExec = options && options.postExec || (() => {});
         this.write = options && options.write || ((str) => {});
         this.clearText = options && options.clearText || (() => {});
@@ -110,7 +112,13 @@ class Pyodide {
 
         this.handleInput = options && options.handleInput || false;
         this.inlineInput = options && options.inlineInput || false;
-        this.pyodideVersion = options && options.pyodideVersion || "";
+        this.pyodideURL = options && options.pyodideURL || "https://cdn.jsdelivr.net/pyodide/v0.17.0/full/";
+		var versionRes = /\/(v[\d.]+)\//.exec(pyodideURL);
+		this.pyodideVersion = versionRes ? versionRes[1] : "";
+        this.pyodideVersion = (function () {
+            import pyodide;
+            return pyodide.__version__;
+        })();
         this.requestInput = false;
         this.inputPrompt = null;
         this.suspended = false; // in debugger
@@ -130,9 +138,14 @@ class Pyodide {
     }
 
     load(then) {
-        this.notifyStatus("loading Pyodide" +
-            (this.pyodideVersion ? " " + this.pyodideVersion : ""));
-        languagePluginLoader.then(() => {
+        this.notifyStatus("loading Pyodide " + this.pyodideVersion);
+
+        loadPyodide({
+            indexURL: this.pyodideURL
+        }).then((pyodide) => {
+
+            this.pyodide = pyodide;
+            this.pyodideVersion = pyodide.version;
 
             this.notifyStatus("setup");
 
@@ -143,7 +156,7 @@ class Pyodide {
                 setDbgCurrentLine: (line) => { this.dbgCurrentLine = line; }
             };
 
-            pyodide.runPython(`
+            this.pyodide.runPython(`
                 import sys
                 from js import pyodideGlobal
                 class __ImportIntercept:
@@ -514,7 +527,7 @@ class Pyodide {
         }
 
         // (re)set stdout and stderr
-        pyodide.runPython(`
+        this.pyodide.runPython(`
             import io, sys
             sys.stdout = io.StringIO()
             sys.stderr = sys.stdout
@@ -522,14 +535,14 @@ class Pyodide {
 
         // disable MatPlotLib output (will get it with matplotlib.pyplot.savefig)
         if (this.loadedModuleNames.indexOf("matplotlib") >= 0) {
-            pyodide.runPython(`
+            this.pyodide.runPython(`
                 import matplotlib
                 matplotlib.use('Agg')
             `);
         }
 
         if (this.handleInput) {
-            pyodide.runPython(`
+            this.pyodide.runPython(`
                 class CodeWithInputEvaluator:
 
                     def __init__(self, src, global_variables):
@@ -682,39 +695,39 @@ class Pyodide {
         try {
             this.notifyStatus("running");
             self.pyodideGlobal.setFigureURL = (url) => this.setFigureURL(url);
-            pyodide.globals.src = src;
+            this.pyodide.globals.src = src;
             if (breakpoints && breakpoints.length > 0) {
                 const bpList = "[" + breakpoints.map((bp) => bp.toString(10)).join(", ") + "]";
-                pyodide.runPython(`
+                this.pyodide.runPython(`
                     import js
                     status = execute_code(src, breakpoints=${bpList})
                     suspended = status != 0
                     done = not suspended
                     js.pyodideGlobal.setDbgCurrentLine(debug_current_line())
                 `);
-                this.suspended = pyodide.globals.suspended;
-                this.requestInput = pyodide.globals.status == 2;
+                this.suspended = this.pyodide.globals.suspended;
+                this.requestInput = this.pyodide.globals.status == 2;
                 this.inputPrompt = null;
             } else if (this.handleInput) {
                 // convert src to a coroutine
-                pyodide.runPython("evaluator = CodeWithInputEvaluator(src, global_variables)");
+                this.pyodide.runPython("evaluator = CodeWithInputEvaluator(src, global_variables)");
                 this.requestInput = false;
-                pyodide.runPython(`
+                this.pyodide.runPython(`
                     done = evaluator.done
                     suspended = False
                     # suspended = evaluator.suspended
                     input_prompt = evaluator.prompt
                 `);
-                if (!pyodide.globals.done && !pyodide.globals.suspended) {
-                    this.inputPrompt = pyodide.globals.input_prompt;
+                if (!this.pyodide.globals.done && !this.pyodide.globals.suspended) {
+                    this.inputPrompt = this.pyodide.globals.input_prompt;
                     this.requestInput = true;
                 }
             } else {
-                pyodide.runPython("execute_code(src); done = True; suspended = False");
+                this.pyodide.runPython("execute_code(src); done = True; suspended = False");
             }
 
             if (this.loadedModuleNames.indexOf("matplotlib") >= 0) {
-                pyodide.runPython(`
+                this.pyodide.runPython(`
                     import matplotlib.pyplot, io, base64, js
                     if matplotlib.pyplot.get_fignums():
                         with io.BytesIO() as buf:
@@ -729,7 +742,7 @@ class Pyodide {
                 this.requestedModuleNames.length > 0) {
                 const nextModuleName = this.requestedModuleNames.shift();
                 this.notifyStatus("loading module " + nextModuleName);
-                pyodide.loadPackage(nextModuleName)
+                this.pyodide.loadPackage(nextModuleName)
                     .then(() => {
                         this.loadedModuleNames.push(nextModuleName);
                         this.notifyStatus("running");
@@ -744,14 +757,14 @@ class Pyodide {
                 return false;
             } else {
                 errMsg = err.message;
-                pyodide.globals.done = true;
+                this.pyodide.globals.done = true;
             }
         }
 
-        let stdout = pyodide.runPython("sys.stdout.getvalue()");
+        let stdout = this.pyodide.runPython("sys.stdout.getvalue()");
         this.write(stdout + errMsg);
 
-        if (!pyodide.globals.done && !pyodide.globals.suspended && this.inlineInput) {
+        if (!this.pyodide.globals.done && !this.pyodide.globals.suspended && this.inlineInput) {
             // write prompt to stdout
             this.write(this.inputPrompt == undefined ? "? " : this.inputPrompt);
         }
@@ -764,7 +777,7 @@ class Pyodide {
     submitInput(str) {
         if (this.requestInput) {
             // (re)set stdout and stderr
-            pyodide.runPython(`
+            this.pyodide.runPython(`
                 import io, sys
                 sys.stdout = io.StringIO()
                 sys.stderr = sys.stdout
@@ -781,41 +794,41 @@ class Pyodide {
             if (this.suspended) {
                 // submit input to debugger
                 try {
-                    pyodide.runPython(`
+                    this.pyodide.runPython(`
                         import js
                         status = submit_input_to_debugger(js.input_string)
                         suspended = status != 0
                         done = not suspended
                         js.pyodideGlobal.setDbgCurrentLine(debug_current_line())
                     `);
-                    this.suspended = pyodide.globals.suspended;
-                    this.requestInput = pyodide.globals.status == 2;
+                    this.suspended = this.pyodide.globals.suspended;
+                    this.requestInput = this.pyodide.globals.status == 2;
                     this.inputPrompt = null;
                 } catch (err) {}
             } else {
                 // submit input using evaluator (coroutine)
                 try {
-                    pyodide.runPython(`
+                    this.pyodide.runPython(`
                         import js
                         evaluator.submit_input(js.input_string)
                         done = evaluator.done
                         # suspended = evaluator.suspended
                         input_prompt = evaluator.prompt
                     `);
-                    if (!pyodide.globals.done && !pyodide.globals.suspended) {
-                        this.inputPrompt = pyodide.globals.input_prompt;
+                    if (!this.pyodide.globals.done && !this.pyodide.globals.suspended) {
+                        this.inputPrompt = this.pyodide.globals.input_prompt;
                         this.requestInput = true;
                     }
                 } catch (err) {
                     errMsg = err.message;
-                    pyodide.globals.done = true;
+                    this.pyodide.globals.done = true;
                 }
             }
 
-            let stdout = pyodide.runPython("sys.stdout.getvalue()");
+            let stdout = this.pyodide.runPython("sys.stdout.getvalue()");
             this.write(stdout + errMsg);
 
-            if (!pyodide.globals.done && !pyodide.globals.suspended && this.inlineInput) {
+            if (!this.pyodide.globals.done && !this.pyodide.globals.suspended && this.inlineInput) {
                 // write prompt to stdout
                 this.write(this.inputPrompt == undefined ? "? " : this.inputPrompt);
             }
@@ -828,7 +841,7 @@ class Pyodide {
         if (this.requestInput) {
             this.requestInput = false;
             try {
-                pyodide.runPython(`
+                this.pyodide.runPython(`
                     evaluator.cancel_input()
                 `);
             } catch (err) {}
@@ -838,7 +851,7 @@ class Pyodide {
 
     continueDebugging(dbgCommand) {
         // (re)set stdout and stderr
-        pyodide.runPython(`
+        this.pyodide.runPython(`
             import io, sys
             sys.stdout = io.StringIO()
             sys.stderr = sys.stdout
@@ -846,22 +859,22 @@ class Pyodide {
 
         try {
             self.dbg_command = dbgCommand;
-            pyodide.runPython(`
+            this.pyodide.runPython(`
                 import js
                 status = continue_debugging(js.dbg_command)
                 suspended = status != 0
                 done = not suspended
                 js.pyodideGlobal.setDbgCurrentLine(debug_current_line())
             `);
-            this.suspended = pyodide.globals.suspended;
-            this.requestInput = pyodide.globals.status == 2;
+            this.suspended = this.pyodide.globals.suspended;
+            this.requestInput = this.pyodide.globals.status == 2;
             this.inputPrompt = null;
         } catch (err) {}
 
-        let stdout = pyodide.runPython("sys.stdout.getvalue()");
+        let stdout = this.pyodide.runPython("sys.stdout.getvalue()");
         this.write(stdout);
 
-        if (!pyodide.globals.done && !pyodide.globals.suspended && this.inlineInput) {
+        if (!this.pyodide.globals.done && !this.pyodide.globals.suspended && this.inlineInput) {
             // write prompt to stdout
             this.write(this.inputPrompt == undefined ? "? " : this.inputPrompt);
         }
@@ -871,7 +884,7 @@ class Pyodide {
 
     clearFigure() {
         if (this.loadedModuleNames.indexOf("matplotlib") >= 0) {
-            pyodide.runPython(`
+            this.pyodide.runPython(`
                 import matplotlib.pyplot
                 matplotlib.pyplot.close()
             `);
